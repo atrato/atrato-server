@@ -28,4 +28,10 @@ public class YarnContainersInfo implements ContainersInfo
   {
     return containers.values();
   }
+
+  @Override
+  public ContainerInfo getContainer(String containerId)
+  {
+    return containers.get(containerId);
+  }
 }

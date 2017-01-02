@@ -5,6 +5,7 @@ import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerInfo;
+import io.atrato.server.provider.ws.v1.resource.ContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainersInfo;
 
 /**
@@ -12,15 +13,21 @@ import io.atrato.server.provider.ws.v1.resource.ContainersInfo;
  */
 public interface Cluster
 {
-  ApplicationsInfo getApplicationsResource();
+  ApplicationsInfo getApplicationsInfo();
 
-  ApplicationInfo getApplicationResource(String appId);
+  ApplicationInfo getApplicationInfo(String appId);
 
-  ContainersInfo getContainersResource(String appId);
+  ContainersInfo getContainersInfo(String appId);
 
-  ContainerInfo getContainerResource(String containerId);
+  ContainerInfo getContainerInfo(String appId, String containerId);
 
-  ApplicationAttemptsInfo getApplicationAttemptsResource(String appId);
+  ApplicationAttemptsInfo getApplicationAttemptsInfo(String appId);
 
-  ApplicationAttemptInfo getApplicationAttemptResource(String attemptId);
+  ApplicationAttemptInfo getApplicationAttemptInfo(String appId, String attemptId);
+
+  ContainersInfo getContainersInfo(String appId, String attemptId);
+
+  ContainerLogsInfo getContainerLogsInfo(String appId, String containerId);
+
+  void killApplication(String appId);
 }
