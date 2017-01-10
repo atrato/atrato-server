@@ -8,4 +8,6 @@ import java.util.Collection;
 public interface ContainersInfo
 {
   Collection<ContainerInfo> getContainers();
+
+  ContainerInfo getContainer(String containerId);
 }

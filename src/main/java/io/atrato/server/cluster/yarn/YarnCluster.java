@@ -1,16 +1,27 @@
 package io.atrato.server.cluster.yarn;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.BasePooledObjectFactory;
 import org.apache.commons.pool2.ObjectPool;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptReport;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
@@ -22,6 +33,7 @@ import com.google.common.base.Throwables;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.Sets;
 
 import io.atrato.server.cluster.Cluster;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptInfo;
@@ -29,19 +41,24 @@ import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerInfo;
+import io.atrato.server.provider.ws.v1.resource.ContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainersInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnApplicationsInfo;
+import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainerInfo;
+import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainersInfo;
+
+import com.datatorrent.stram.StramClient;
 
 /**
  * Created by david on 12/30/16.
  */
 public class YarnCluster implements Cluster
 {
+  private static final Set<String> APPLICATION_TYPES = Sets.newHashSet(StramClient.YARN_APPLICATION_TYPE, StramClient.YARN_APPLICATION_TYPE_DEPRECATED);
   private static final int REFRESH_INTERVAL_SECONDS = 1;
   private ObjectPool<YarnClient> yarnClientPool = new GenericObjectPool<>(new YarnClientFactory());
-
   private static final Object DUMMY_OBJECT = new Object();
 
   private final LoadingCache<Object, List<ApplicationReport>> appListCache = CacheBuilder.newBuilder()
@@ -53,7 +70,7 @@ public class YarnCluster implements Cluster
         {
           YarnClient yarnClient = borrowYarnClient();
           try {
-            return yarnClient.getApplications();
+            return yarnClient.getApplications(APPLICATION_TYPES);
           } finally {
             returnYarnClient(yarnClient);
           }
@@ -114,19 +131,19 @@ public class YarnCluster implements Cluster
   }
 
   @Override
-  public ApplicationsInfo getApplicationsResource()
+  public ApplicationsInfo getApplicationsInfo()
   {
     return new YarnApplicationsInfo(getApplications());
   }
 
   @Override
-  public ApplicationInfo getApplicationResource(String appId)
+  public ApplicationInfo getApplicationInfo(String appId)
   {
     return new YarnApplicationsInfo(getApplications()).getApplication(appId);
   }
 
   @Override
-  public ContainersInfo getContainersResource(String appId)
+  public ContainersInfo getContainersInfo(String appId)
   {
     YarnClient yarnClient = borrowYarnClient();
     try {
@@ -141,18 +158,12 @@ public class YarnCluster implements Cluster
   }
 
   @Override
-  public ContainerInfo getContainerResource(String containerId)
-  {
-    return null;
-  }
-
-  @Override
-  public ApplicationAttemptsInfo getApplicationAttemptsResource(String appId)
+  public ContainerInfo getContainerInfo(String appId, String containerId)
   {
     YarnClient yarnClient = borrowYarnClient();
     try {
-      List<ApplicationAttemptReport> attemptReports = yarnClient.getApplicationAttempts(ConverterUtils.toApplicationId(appId));
-      return new YarnApplicationAttemptsInfo(attemptReports);
+      ContainerReport containerReport = yarnClient.getContainerReport(ConverterUtils.toContainerId(containerId));
+      return new YarnContainerInfo(containerReport);
     } catch (Exception ex) {
       throw Throwables.propagate(ex);
     } finally {
@@ -161,8 +172,90 @@ public class YarnCluster implements Cluster
   }
 
   @Override
-  public ApplicationAttemptInfo getApplicationAttemptResource(String attemptId)
+  public ApplicationAttemptsInfo getApplicationAttemptsInfo(String appId)
   {
-    return null;
+    YarnClient yarnClient = borrowYarnClient();
+    try {
+      List<ApplicationAttemptReport> attemptReports = yarnClient.getApplicationAttempts(ConverterUtils.toApplicationId(appId));
+      return new YarnApplicationAttemptsInfo(appId, attemptReports);
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    } finally {
+      returnYarnClient(yarnClient);
+    }
   }
+
+  @Override
+  public ApplicationAttemptInfo getApplicationAttemptInfo(String appId, String attemptId)
+  {
+    return getApplicationAttemptsInfo(appId).getAttempt(attemptId);
+  }
+
+  @Override
+  public ContainersInfo getContainersInfo(String appId, String attemptId)
+  {
+    ApplicationAttemptId id;
+    if (StringUtils.isNumeric(attemptId)) {
+      id = ApplicationAttemptId.newInstance(ConverterUtils.toApplicationId(appId), Integer.valueOf(attemptId));
+    } else {
+      id = ConverterUtils.toApplicationAttemptId(attemptId);
+    }
+    YarnClient yarnClient = borrowYarnClient();
+    try {
+      List<ContainerReport> containers = yarnClient.getContainers(id);
+      return new YarnContainersInfo(containers);
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    } finally {
+      returnYarnClient(yarnClient);
+    }
+  }
+
+  @Override
+  public ContainerLogsInfo getContainerLogsInfo(String appId, String containerId)
+  {
+    YarnClient yarnClient = borrowYarnClient();
+    try {
+      ContainerReport containerReport = yarnClient.getContainerReport(ConverterUtils.toContainerId(containerId));
+      String logUrl = containerReport.getLogUrl();
+      URL url = new URL(logUrl);
+      String content;
+      try (InputStream is = url.openStream();
+          ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+        IOUtils.copy(is, baos);
+        content = baos.toString();
+      }
+
+      YarnContainerLogsInfo logs = new YarnContainerLogsInfo();
+      // parse content
+
+      Pattern pattern = Pattern.compile("<p>\\s*<a href=\"(\\S+)\">(.*) : Total file length is (\\d+) bytes.</a>");
+      Matcher m = pattern.matcher(content);
+      while (m.find()) {
+        String logName = m.group(2);
+        long bytes = Long.valueOf(m.group(3));
+        logs.addLog(logName, bytes);
+      }
+
+      return logs;
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    } finally {
+      returnYarnClient(yarnClient);
+    }
+  }
+
+  @Override
+  public void killApplication(String appId)
+  {
+    YarnClient yarnClient = borrowYarnClient();
+    try {
+      yarnClient.killApplication(ConverterUtils.toApplicationId(appId));
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    } finally {
+      returnYarnClient(yarnClient);
+    }
+  }
+
 }

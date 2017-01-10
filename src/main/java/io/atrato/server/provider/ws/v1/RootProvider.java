@@ -22,6 +22,12 @@ public class RootProvider
     return ApplicationsProvider.INSTANCE;
   }
 
+  @Path("appPackages")
+  public AppPackagesProvider getAppPackagesProvider()
+  {
+    return AppPackagesProvider.INSTANCE;
+  }
+
   @GET
   @Produces(MediaType.APPLICATION_JSON)
   @Path("about")
