@@ -112,4 +112,101 @@
     </dependency -->
   </dependencies>
 
+  <profiles>
+    <profile>
+      <id>release</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <properties>
+        <hadoop.version>2.6.0</hadoop.version>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-dependency-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>generate-classpath</id>
+                <phase>generate-resources</phase>
+                <goals>
+                  <goal>build-classpath</goal>
+                </goals>
+                <configuration>
+                  <outputFile>${project.build.directory}/mvn-generated-classpath</outputFile>
+                  <includeScope>runtime</includeScope>
+                  <excludeScope>test</excludeScope>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>1.8</version>
+            <executions>
+              <execution>
+                <phase>prepare-package</phase>
+                <id>copy-dependencies</id>
+                <configuration>
+                  <target>
+                    <exec executable="mvn">
+                      <arg value="dependency:build-classpath"/>
+                      <arg value="-Dmdep.outputFile=${basedir}/target/hadoop-classpath"/>
+                      <arg value="-DincludeScope=runtime"/>
+                      <arg value="-DexcludeScope=test"/>
+                      <arg value="-Dhadoop.version=${hadoop.version}"/>
+                      <arg value="-f"/>
+                      <arg value="${basedir}/src/assemble/pom-hadoop-deps.xml"/>
+                    </exec>
+                    <loadresource property="hadoop.classpath">
+                      <file file="${basedir}/target/hadoop-classpath"/>
+                    </loadresource>
+                    <pathconvert property="hadoop.csv" pathsep=",">
+                      <map from="/" to=""/>
+                      <path path="${hadoop.classpath}"/>
+                    </pathconvert>
+                    <loadresource property="atrato-server.classpath">
+                      <file file="${basedir}/target/mvn-generated-classpath"/>
+                    </loadresource>
+                    <pathconvert property="atrato-server.csv" pathsep=",">
+                      <map from="/" to=""/>
+                      <path path="${atrato-server.classpath}"/>
+                    </pathconvert>
+                    <copy todir="${basedir}/target/hadoop-deps" flatten="true" failonerror="true">
+                      <fileset dir="/" includes="${hadoop.csv}" />
+                    </copy>
+                    <copy todir="${basedir}/target/atrato-server-deps" flatten="true" failonerror="true">
+                      <fileset dir="/" includes="${atrato-server.csv}" excludes="${hadoop.csv}"/>
+                    </copy>
+                  </target>
+                </configuration>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-assembly-plugin</artifactId>
+            <version>3.0.0</version>
+            <configuration>
+              <descriptors>
+                <descriptor>src/assemble/bin.xml</descriptor>
+              </descriptors>
+            </configuration>
+            <executions>
+              <execution>
+                <id>make-assembly</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>single</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>
