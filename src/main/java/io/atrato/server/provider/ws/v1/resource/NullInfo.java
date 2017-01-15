@@ -5,4 +5,9 @@ package io.atrato.server.provider.ws.v1.resource;
  */
 public class NullInfo
 {
+  public static final NullInfo INSTANCE = new NullInfo();
+
+  private NullInfo()
+  {
+  }
 }

@@ -1,11 +1,12 @@
 package io.atrato.server.cluster.yarn;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -25,6 +26,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptReport;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
+import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.ConverterUtils;
@@ -36,16 +38,17 @@ import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Sets;
 
 import io.atrato.server.cluster.Cluster;
+import io.atrato.server.cluster.ContainerLogsReader;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerInfo;
+import io.atrato.server.provider.ws.v1.resource.ContainerLogInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainersInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnApplicationsInfo;
-import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainerInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.yarn.YarnContainersInfo;
 
@@ -61,23 +64,108 @@ public class YarnCluster implements Cluster
   private ObjectPool<YarnClient> yarnClientPool = new GenericObjectPool<>(new YarnClientFactory());
   private static final Object DUMMY_OBJECT = new Object();
 
-  private final LoadingCache<Object, List<ApplicationReport>> appListCache = CacheBuilder.newBuilder()
-      .concurrencyLevel(2)
-      .expireAfterWrite(REFRESH_INTERVAL_SECONDS, TimeUnit.SECONDS)
-      .build(new CacheLoader<Object, List<ApplicationReport>>()
-      {
-        public List<ApplicationReport> load(Object key) throws Exception
-        {
-          YarnClient yarnClient = borrowYarnClient();
-          try {
-            return yarnClient.getApplications(APPLICATION_TYPES);
-          } finally {
-            returnYarnClient(yarnClient);
-          }
-        }
-      });
+  private final LoadingCache<Object, List<ApplicationReport>> appListCache = buildCache(new CacheLoader<Object, List<ApplicationReport>>()
+  {
+    public List<ApplicationReport> load(Object key) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        return yarnClient.getApplications(APPLICATION_TYPES);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
+
+  private final LoadingCache<String, List<ContainerReport>> appIdToContainerListCache = buildCache(new CacheLoader<String, List<ContainerReport>>()
+  {
+    public List<ContainerReport> load(String appId) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        ApplicationReport applicationReport = yarnClient.getApplicationReport(ConverterUtils.toApplicationId(appId));
+        return yarnClient.getContainers(applicationReport.getCurrentApplicationAttemptId());
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
+
+  private final LoadingCache<String, List<ApplicationAttemptReport>> appIdAttemptsCache = buildCache(new CacheLoader<String, List<ApplicationAttemptReport>>()
+  {
+    @Override
+    public List<ApplicationAttemptReport> load(String appId) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        return yarnClient.getApplicationAttempts(ConverterUtils.toApplicationId(appId));
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
+
+  private final LoadingCache<ApplicationAttemptId, List<ContainerReport>> attemptIdToContainersCache = buildCache(new CacheLoader<ApplicationAttemptId, List<ContainerReport>>()
+  {
+    @Override
+    public List<ContainerReport> load(ApplicationAttemptId attemptId) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        return yarnClient.getContainers(attemptId);
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
+
+  private final LoadingCache<String, ApplicationReport> applicationReportCache = buildCache(new CacheLoader<String, ApplicationReport>()
+  {
+    @Override
+    public ApplicationReport load(String appId) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        return yarnClient.getApplicationReport(ConverterUtils.toApplicationId(appId));
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
+
+  private final LoadingCache<String, ContainerReport> containerReportCache = buildCache(new CacheLoader<String, ContainerReport>()
+  {
+    @Override
+    public ContainerReport load(String containerId) throws Exception
+    {
+      YarnClient yarnClient = borrowYarnClient();
+      try {
+        return yarnClient.getContainerReport(ConverterUtils.toContainerId(containerId));
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      } finally {
+        returnYarnClient(yarnClient);
+      }
+    }
+  });
 
   private static final Logger LOG = LoggerFactory.getLogger(YarnCluster.class);
+
+  private static <K, V> LoadingCache<K, V> buildCache(CacheLoader<K, V> cacheLoader)
+  {
+    return CacheBuilder.newBuilder()
+        .concurrencyLevel(2)
+        .expireAfterWrite(REFRESH_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .build(cacheLoader);
+  }
 
   private static class YarnClientFactory extends BasePooledObjectFactory<YarnClient>
   {
@@ -130,6 +218,33 @@ public class YarnCluster implements Cluster
     }
   }
 
+  public List<ContainerReport> getContainers(String appId)
+  {
+    try {
+      return appIdToContainerListCache.get(appId);
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    }
+  }
+
+  public ApplicationReport getApplicationReport(String appId)
+  {
+    try {
+      return applicationReportCache.get(appId);
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    }
+  }
+
+  public ContainerReport getContainerReport(String containerId)
+  {
+    try {
+      return containerReportCache.get(containerId);
+    } catch (Exception ex) {
+      throw Throwables.propagate(ex);
+    }
+  }
+
   @Override
   public ApplicationsInfo getApplicationsInfo()
   {
@@ -145,43 +260,22 @@ public class YarnCluster implements Cluster
   @Override
   public ContainersInfo getContainersInfo(String appId)
   {
-    YarnClient yarnClient = borrowYarnClient();
-    try {
-      ApplicationReport applicationReport = yarnClient.getApplicationReport(ConverterUtils.toApplicationId(appId));
-      List<ContainerReport> containers = yarnClient.getContainers(applicationReport.getCurrentApplicationAttemptId());
-      return new YarnContainersInfo(containers);
-    } catch (Exception ex) {
-      throw Throwables.propagate(ex);
-    } finally {
-      returnYarnClient(yarnClient);
-    }
+    return new YarnContainersInfo(getContainers(appId));
   }
 
   @Override
   public ContainerInfo getContainerInfo(String appId, String containerId)
   {
-    YarnClient yarnClient = borrowYarnClient();
-    try {
-      ContainerReport containerReport = yarnClient.getContainerReport(ConverterUtils.toContainerId(containerId));
-      return new YarnContainerInfo(containerReport);
-    } catch (Exception ex) {
-      throw Throwables.propagate(ex);
-    } finally {
-      returnYarnClient(yarnClient);
-    }
+    return new YarnContainersInfo(getContainers(appId)).getContainer(containerId);
   }
 
   @Override
   public ApplicationAttemptsInfo getApplicationAttemptsInfo(String appId)
   {
-    YarnClient yarnClient = borrowYarnClient();
     try {
-      List<ApplicationAttemptReport> attemptReports = yarnClient.getApplicationAttempts(ConverterUtils.toApplicationId(appId));
-      return new YarnApplicationAttemptsInfo(appId, attemptReports);
+      return new YarnApplicationAttemptsInfo(appId, appIdAttemptsCache.get(appId));
     } catch (Exception ex) {
       throw Throwables.propagate(ex);
-    } finally {
-      returnYarnClient(yarnClient);
     }
   }
 
@@ -200,49 +294,39 @@ public class YarnCluster implements Cluster
     } else {
       id = ConverterUtils.toApplicationAttemptId(attemptId);
     }
-    YarnClient yarnClient = borrowYarnClient();
     try {
-      List<ContainerReport> containers = yarnClient.getContainers(id);
-      return new YarnContainersInfo(containers);
+      return new YarnContainersInfo(attemptIdToContainersCache.get(id));
     } catch (Exception ex) {
       throw Throwables.propagate(ex);
-    } finally {
-      returnYarnClient(yarnClient);
     }
   }
 
   @Override
   public ContainerLogsInfo getContainerLogsInfo(String appId, String containerId)
   {
-    YarnClient yarnClient = borrowYarnClient();
+    YarnContainerLogsInfo logsInfo = new YarnContainerLogsInfo();
     try {
-      ContainerReport containerReport = yarnClient.getContainerReport(ConverterUtils.toContainerId(containerId));
-      String logUrl = containerReport.getLogUrl();
-      URL url = new URL(logUrl);
-      String content;
-      try (InputStream is = url.openStream();
-          ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-        IOUtils.copy(is, baos);
-        content = baos.toString();
+      YarnContainerLogsReader reader = YarnContainerLogsReader.create(this, appId, containerId);
+      Map<String, Long> fileSizes = reader.getFileSizes();
+      for (Map.Entry<String, Long> entry : fileSizes.entrySet()) {
+        logsInfo.addLog(entry.getKey(), entry.getValue());
       }
-
-      YarnContainerLogsInfo logs = new YarnContainerLogsInfo();
-      // parse content
-
-      Pattern pattern = Pattern.compile("<p>\\s*<a href=\"(\\S+)\">(.*) : Total file length is (\\d+) bytes.</a>");
-      Matcher m = pattern.matcher(content);
-      while (m.find()) {
-        String logName = m.group(2);
-        long bytes = Long.valueOf(m.group(3));
-        logs.addLog(logName, bytes);
-      }
-
-      return logs;
-    } catch (Exception ex) {
-      throw Throwables.propagate(ex);
-    } finally {
-      returnYarnClient(yarnClient);
+    } catch (FileNotFoundException ex) {
+      // fall through
     }
+    return logsInfo;
+  }
+
+  @Override
+  public ContainerLogInfo getContainerLogInfo(String appId, String containerId, String name)
+  {
+    return getContainerLogsInfo(appId, containerId).getLog(name);
+  }
+
+  @Override
+  public ContainerLogsReader getContainerLogsReader(String appId, String containerId) throws IOException
+  {
+    return YarnContainerLogsReader.create(this, appId, containerId);
   }
 
   @Override
@@ -256,6 +340,13 @@ public class YarnCluster implements Cluster
     } finally {
       returnYarnClient(yarnClient);
     }
+  }
+
+  public static boolean isApplicationTerminatedState(YarnApplicationState state)
+  {
+    return state == YarnApplicationState.FAILED ||
+        state == YarnApplicationState.FINISHED ||
+        state == YarnApplicationState.KILLED;
   }
 
 }

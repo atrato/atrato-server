@@ -14,4 +14,8 @@ public interface ContainerInfo
   long getFinishTime();
 
   int getExitStatus();
+
+  String getDiagnosticsInfo();
+
+  String getAssignedNode();
 }
