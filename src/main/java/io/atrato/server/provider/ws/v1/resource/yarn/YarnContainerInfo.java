@@ -46,9 +46,16 @@ public class YarnContainerInfo implements ContainerInfo
     return this.containerReport.getContainerExitStatus();
   }
 
+  @Override
   public String getDiagnosticsInfo()
   {
     return this.containerReport.getDiagnosticsInfo();
+  }
+
+  @Override
+  public String getAssignedNode()
+  {
+    return this.containerReport.getAssignedNode().toString();
   }
 
 }

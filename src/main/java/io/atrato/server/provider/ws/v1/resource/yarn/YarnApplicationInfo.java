@@ -37,7 +37,7 @@ public class YarnApplicationInfo implements ApplicationInfo
   }
 
   @Override
-  public String getUser()
+  public String getOwner()
   {
     return yarnApplicationReport.getUser();
   }

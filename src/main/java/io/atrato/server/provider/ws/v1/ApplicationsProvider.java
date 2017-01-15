@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.inject.Inject;
 import javax.ws.rs.DELETE;
@@ -27,25 +29,30 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.EvictingQueue;
 import com.sun.jersey.api.client.WebResource;
 
 import com.datatorrent.stram.client.StramAgent;
 import com.datatorrent.stram.util.WebServicesClient;
 
 import io.atrato.server.cluster.Cluster;
+import io.atrato.server.cluster.ContainerLogsReader;
 import io.atrato.server.cluster.yarn.YarnCluster;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerInfo;
+import io.atrato.server.provider.ws.v1.resource.ContainerLogInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainerLogsInfo;
 import io.atrato.server.provider.ws.v1.resource.ContainersInfo;
 import io.atrato.server.provider.ws.v1.resource.NullInfo;
+import io.atrato.server.util.LineReader;
 
 /**
  * Created by david on 12/26/16.
@@ -71,7 +78,6 @@ public class ApplicationsProvider
       try {
         Configuration conf = new Configuration();
         FileSystem fs = FileSystem.get(conf);
-        LOG.info("DEFAULT FS {}", conf.get("fs.defaultFS"));
         return new StramAgent(fs, conf);
       } catch (Exception ex) {
         throw Throwables.propagate(ex);
@@ -118,17 +124,77 @@ public class ApplicationsProvider
     return cluster.getContainerLogsInfo(appId, containerId);
   }
 
-  /*
   @GET
   @Path("{appId}/" + PATH_CONTAINERS + "/{containerId}/logs/{name}")
-  @Produces(MediaType.APPLICATION_JSON)
   public Response getContainerLog(@PathParam("appId") String appId, @PathParam("containerId") String containerId,
-      @PathParam("name") String logName, @QueryParam("start") Long start, @QueryParam("start") Long end)
+      @PathParam("name") String logName, @QueryParam("start") Long start, @QueryParam("lines") Long lines,
+      @QueryParam("searchTerm") String search, @QueryParam("regex") Boolean regex,
+      @QueryParam("beforeContext") Integer beforeContext, @QueryParam("afterContext") Integer afterContext)
   {
-    ContainerInfo containerInfo = getContainer(appId, containerId);
-    return cluster.getContainerLogsInfo(appId, containerId);
+    ContainerLogInfo containerLogInfo = cluster.getContainerLogInfo(appId, containerId, logName);
+    return getContainerLogResponse(appId, containerId, logName, start == null ? 0 : start, lines == null ? Long.MAX_VALUE : lines,
+        search, BooleanUtils.isTrue(regex),
+        beforeContext == null ? 0 : beforeContext, afterContext == null ? 0 : afterContext);
   }
-  */
+
+  private Response getContainerLogResponse(final String appId, final String containerId, final String logName,
+      final long startOffset, final long lines,
+      final String searchTerm, final boolean regex, final int beforeContext, final int afterContext)
+  {
+    StreamingOutput output = new StreamingOutput()
+    {
+      @Override
+      public void write(OutputStream os) throws IOException, WebApplicationException
+      {
+        try (ContainerLogsReader containerLogsReader = cluster.getContainerLogsReader(appId, containerId)) {
+          LineReader logFileReader = containerLogsReader.getLogFileReader(logName, startOffset);
+          EvictingQueue<String> beforeLines = EvictingQueue.create(beforeContext + 1);
+          String line;
+          long linesOutput = 0;
+          int afterLines = 0;
+          Pattern pattern = null;
+          if (searchTerm != null && regex) {
+            pattern = Pattern.compile(searchTerm);
+          }
+          while ((line = logFileReader.readLine()) != null) {
+            if (searchTerm == null) {
+              linesOutput++;
+              os.write(line.getBytes());
+              os.write('\n');
+            } else {
+              boolean matched;
+              beforeLines.add(line);
+              if (regex) {
+                Matcher matcher = pattern.matcher(line);
+                matched = matcher.find();
+              } else {
+                matched = line.contains(searchTerm);
+              }
+              if (matched) {
+                for (String beforeLine : beforeLines) {
+                  os.write(beforeLine.getBytes());
+                  os.write('\n');
+                  linesOutput++;
+                }
+                beforeLines.clear();
+                afterLines = afterContext;
+              } else if (afterLines > 0) {
+                os.write(line.getBytes());
+                os.write('\n');
+                linesOutput++;
+                afterLines--;
+              }
+            }
+            if (linesOutput >= lines) {
+              break;
+            }
+          }
+        }
+      }
+    };
+    return Response.ok(output).build();
+  }
+
 
   @GET
   @Path("{appId}/" + PATH_ATTEMPTS)
@@ -170,32 +236,34 @@ public class ApplicationsProvider
   @GET
   @Path("{appId}/" + PATH_ATTEMPTS + "/{attemptId}/" + PATH_CONTAINERS + "/{containerId}/logs")
   @Produces(MediaType.APPLICATION_JSON)
-  public ContainerLogsInfo getContainerLogs(@PathParam("appId") String appId, @PathParam("attemptId") String attemptId,
+  public ContainerLogsInfo getAttemptContainerLogs(@PathParam("appId") String appId, @PathParam("attemptId") String attemptId,
       @PathParam("containerId") String containerId)
   {
-    ContainerInfo containerInfo = getAttemptContainer(appId, attemptId, containerId);
+    getAttemptContainer(appId, attemptId, containerId); // throws NotFoundException if not found
     return cluster.getContainerLogsInfo(appId, containerId);
   }
 
-  /*
   @GET
   @Path("{appId}/" + PATH_ATTEMPTS + "/{attemptId}/" + PATH_CONTAINERS + "/{containerId}/logs/{name}")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response getContainerLog(@PathParam("appId") String appId, @PathParam("attemptId") String attemptId,
-      @PathParam("containerId") String containerId, @PathParam("name") String logName,
-      @QueryParam("start") Long start, @QueryParam("start") Long end)
+  public Response getAttemptContainerLog(@PathParam("appId") String appId, @PathParam("attemptId") String attemptId,
+      @PathParam("containerId") String containerId,
+      @PathParam("name") String logName, @QueryParam("start") Long start, @QueryParam("lines") Long lines,
+      @QueryParam("searchTerm") String search, @QueryParam("regex") Boolean regex,
+      @QueryParam("beforeContext") Integer beforeContext, @QueryParam("afterContext") Integer afterContext)
   {
-    ContainerInfo containerInfo = getAttemptContainer(appId, attemptId, containerId);
-    return cluster.getContainerLogsInfo(appId, containerId);
+    ContainerLogsInfo containerLogsInfo = getAttemptContainerLogs(appId, attemptId, containerId);
+    return getContainerLogResponse(appId, containerId, logName, start == null ? 0 : start, lines == null ? Long.MAX_VALUE : lines,
+        search, BooleanUtils.isTrue(regex),
+        beforeContext == null ? 0 : beforeContext, afterContext == null ? 0 : afterContext);
   }
-  */
 
   @POST
   @Path("{appId}/" + PATH_KILL)
   public NullInfo killApplication(@PathParam("appId") String appId)
   {
     cluster.killApplication(appId);
-    return new NullInfo();
+    return NullInfo.INSTANCE;
   }
 
   private Response stramProxy(String appId, String cmd, UriInfo uriInfo, WebServicesClient.WebServicesHandler<InputStream> handler)

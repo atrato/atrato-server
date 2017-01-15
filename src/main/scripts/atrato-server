@@ -1,0 +1,6 @@
+#!/bin/bash
+
+$HADOOP_PREFIX/bin/hadoop
+
+JAVA=$JAVA_HOME/bin
+
