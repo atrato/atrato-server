@@ -40,9 +40,9 @@ import com.sun.jersey.api.client.WebResource;
 import com.datatorrent.stram.client.StramAgent;
 import com.datatorrent.stram.util.WebServicesClient;
 
+import io.atrato.server.AtratoServer;
 import io.atrato.server.cluster.Cluster;
 import io.atrato.server.cluster.ContainerLogsReader;
-import io.atrato.server.cluster.yarn.YarnCluster;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationAttemptsInfo;
 import io.atrato.server.provider.ws.v1.resource.ApplicationInfo;
@@ -65,8 +65,8 @@ public class ApplicationsProvider
   private static final String PATH_ATTEMPTS = "attempts";
   private static final String PATH_KILL = "kill";
 
-  @Inject //TODO: need to make this an injection
-  private Cluster cluster = new YarnCluster();
+  @Inject //TODO: need to make this injection work in the future
+  private Cluster cluster;
 
   private static final Logger LOG = LoggerFactory.getLogger(ApplicationsProvider.class);
 
@@ -89,7 +89,9 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ApplicationsInfo getApplications()
   {
-    return cluster.getApplicationsInfo();
+    ApplicationsInfo applicationsInfo = AtratoServer.getCluster().getApplicationsInfo();
+    LOG.info("Applications are {}", applicationsInfo.getApplications());
+    return applicationsInfo;
   }
 
   @GET
@@ -97,7 +99,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ApplicationInfo getApplication(@PathParam("appId") String appId)
   {
-    return cluster.getApplicationInfo(appId);
+    return AtratoServer.getCluster().getApplicationInfo(appId);
   }
 
   @GET
@@ -105,7 +107,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ContainersInfo getContainers(@PathParam("appId") String appId)
   {
-    return cluster.getContainersInfo(appId);
+    return AtratoServer.getCluster().getContainersInfo(appId);
   }
 
   @GET
@@ -113,7 +115,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ContainerInfo getContainer(@PathParam("appId") String appId, @PathParam("containerId") String containerId)
   {
-    return cluster.getContainerInfo(appId, containerId);
+    return AtratoServer.getCluster().getContainerInfo(appId, containerId);
   }
 
   @GET
@@ -121,7 +123,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ContainerLogsInfo getContainerLogs(@PathParam("appId") String appId, @PathParam("containerId") String containerId)
   {
-    return cluster.getContainerLogsInfo(appId, containerId);
+    return AtratoServer.getCluster().getContainerLogsInfo(appId, containerId);
   }
 
   @GET
@@ -131,7 +133,7 @@ public class ApplicationsProvider
       @QueryParam("searchTerm") String search, @QueryParam("regex") Boolean regex,
       @QueryParam("beforeContext") Integer beforeContext, @QueryParam("afterContext") Integer afterContext)
   {
-    ContainerLogInfo containerLogInfo = cluster.getContainerLogInfo(appId, containerId, logName);
+    ContainerLogInfo containerLogInfo = AtratoServer.getCluster().getContainerLogInfo(appId, containerId, logName);
     return getContainerLogResponse(appId, containerId, logName, start == null ? 0 : start, lines == null ? Long.MAX_VALUE : lines,
         search, BooleanUtils.isTrue(regex),
         beforeContext == null ? 0 : beforeContext, afterContext == null ? 0 : afterContext);
@@ -146,8 +148,8 @@ public class ApplicationsProvider
       @Override
       public void write(OutputStream os) throws IOException, WebApplicationException
       {
-        try (ContainerLogsReader containerLogsReader = cluster.getContainerLogsReader(appId, containerId)) {
-          LineReader logFileReader = containerLogsReader.getLogFileReader(logName, startOffset);
+        try (ContainerLogsReader containerLogsReader = AtratoServer.getCluster().getContainerLogsReader(appId, containerId);
+            LineReader logFileReader = containerLogsReader.getLogFileReader(logName, startOffset)) {
           EvictingQueue<String> beforeLines = EvictingQueue.create(beforeContext + 1);
           String line;
           long linesOutput = 0;
@@ -201,7 +203,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ApplicationAttemptsInfo getAttempts(@PathParam("appId") String appId)
   {
-    return cluster.getApplicationAttemptsInfo(appId);
+    return AtratoServer.getCluster().getApplicationAttemptsInfo(appId);
   }
 
   @GET
@@ -209,7 +211,7 @@ public class ApplicationsProvider
   @Produces(MediaType.APPLICATION_JSON)
   public ApplicationAttemptInfo getAttempt(@PathParam("appId") String appId, @PathParam("attemptId") String attemptId)
   {
-    return cluster.getApplicationAttemptInfo(appId, attemptId);
+    return AtratoServer.getCluster().getApplicationAttemptInfo(appId, attemptId);
   }
 
   @GET

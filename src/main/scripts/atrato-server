@@ -1,6 +1,11 @@
 #!/bin/bash
 
-$HADOOP_PREFIX/bin/hadoop
+# source environment variables for HADOOP_PREFIX
 
-JAVA=$JAVA_HOME/bin
+if [ -d "$HADOOP_PREFIX" ]; then
+  JAVA=$HADOOP_PREFIX/bin/hadoop
+else
+  JAVA=$JAVA_HOME/bin/java
+fi
+
 

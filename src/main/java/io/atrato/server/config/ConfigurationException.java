@@ -5,8 +5,15 @@ package io.atrato.server.config;
  */
 public class ConfigurationException extends Exception
 {
+  private Throwable cause;
+
   public ConfigurationException(String message)
   {
     super(message);
+  }
+
+  public ConfigurationException(Throwable cause)
+  {
+    this.cause = cause;
   }
 }
