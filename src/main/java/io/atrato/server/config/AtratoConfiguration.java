@@ -1,19 +1,25 @@
 package io.atrato.server.config;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Created by david on 12/22/16.
  */
-public interface AtratoConfiguration
+public interface AtratoConfiguration extends Closeable
 {
   class Entry
   {
-    private final String name;
-    private final String value;
-    private final String description;
+    private String name;
+    private String value;
+    private String description;
 
-    Entry(String name, String value, String description)
+    public Entry()
+    {
+    }
+
+    public Entry(String name, String value, String description)
     {
       this.name = name;
       this.value = value;
@@ -34,7 +40,24 @@ public interface AtratoConfiguration
     {
       return description;
     }
+
+    public void setName(String name)
+    {
+      this.name = name;
+    }
+
+    public void setValue(String value)
+    {
+      this.value = value;
+    }
+
+    public void setDescription(String description)
+    {
+      this.description = description;
+    }
   }
+
+  Collection<Entry> getEntries();
 
   /**
    *
@@ -148,7 +171,13 @@ public interface AtratoConfiguration
 
   /**
    *
+   * @param name
    */
-  void save() throws IOException;
+  void delete(String name);
+
+  /**
+   * @param force
+   */
+  void save(boolean force) throws IOException;
 
 }

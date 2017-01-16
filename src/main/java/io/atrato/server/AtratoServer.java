@@ -2,6 +2,10 @@ package io.atrato.server;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,6 +25,8 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
+import com.google.common.base.Throwables;
+
 import com.datatorrent.common.util.JacksonObjectMapperProvider;
 import com.datatorrent.stram.util.VersionInfo;
 
@@ -29,6 +35,7 @@ import io.atrato.server.cluster.yarn.YarnCluster;
 import io.atrato.server.config.AtratoConfiguration;
 import io.atrato.server.config.ConfigurationException;
 import io.atrato.server.config.FileConfiguration;
+import io.atrato.server.config.JDBCConfiguration;
 
 /**
  * Created by david on 12/22/16.
@@ -47,24 +54,39 @@ public class AtratoServer
 
   private String host = DEFAULT_HOST;
   private int port = DEFAULT_PORT;
-  private AtratoConfiguration atratoConfiguration;
+  private static AtratoConfiguration configuration;
+  private static Cluster cluster;
 
   private static String groupId = "io.atrato";
   private static String artifactId = "atrato-server";
   private static Class<?> classInJar = AtratoServer.class;
   private static String gitPropertiesResource = artifactId + ".git.properties";
 
+  private static final String CMD_OPTION_ADDRESS = "address";
+  private static final String CMD_OPTION_CONFIGLOCATION = "configLocation";
+
+  private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:atrato;create=true";
   public static final VersionInfo ATRATO_SERVER_VERSION = new VersionInfo(classInJar, groupId, artifactId, gitPropertiesResource);
+
+  public static AtratoConfiguration getConfiguration()
+  {
+    return configuration;
+  }
+
+  public static Cluster getCluster()
+  {
+    return cluster;
+  }
 
   void init(String[] args) throws ParseException, IOException, ConfigurationException
   {
     Options options = new Options();
-    options.addOption("address", true, "Address to listen to. Default is " + DEFAULT_HOST + ":" + DEFAULT_PORT);
-    options.addOption("configLocation", true, "Configuration agent. Default is ");
+    options.addOption(CMD_OPTION_ADDRESS, true, "Address to listen to. Default is " + DEFAULT_HOST + ":" + DEFAULT_PORT);
+    options.addOption(CMD_OPTION_CONFIGLOCATION, true, "Configuration location url. Default is " + DEFAULT_CONFIG_LOCATION);
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    String address = cmd.getOptionValue("address");
+    String address = cmd.getOptionValue(CMD_OPTION_ADDRESS);
     if (address != null) {
 
       Pattern pattern = Pattern.compile("(.+:)?(\\d+)");
@@ -82,15 +104,36 @@ public class AtratoServer
 
     }
 
-    atratoConfiguration = new FileConfiguration("/tmp/atrato.json");
-    atratoConfiguration.load();
+    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIGLOCATION);
+    if (configLocation == null) {
+      configLocation = DEFAULT_CONFIG_LOCATION;
+    }
+
+    if (configLocation.startsWith("file:")) {
+      try {
+        Path path = Paths.get(new URL(configLocation).toURI());
+        configuration = new FileConfiguration(path.toString());
+      } catch (URISyntaxException ex) {
+        throw new ParseException("configLocation is not a valid url");
+      }
+    } else if (configLocation.startsWith("jdbc:")) {
+      try {
+        configuration = new JDBCConfiguration(configLocation);
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      }
+    } else {
+      throw new ParseException("configLocation only supports file and jdbc urls");
+    }
+    configuration.load();
+    cluster = new YarnCluster();
   }
 
   void run() throws Exception
   {
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
     context.setContextPath("/");
-    String staticResourceBase = atratoConfiguration.getValue(CONFIG_KEY_STATIC_RESOURCE_BASE);
+    String staticResourceBase = configuration.getValue(CONFIG_KEY_STATIC_RESOURCE_BASE);
     if (staticResourceBase != null) {
       context.setResourceBase(staticResourceBase);
     } else {
@@ -98,6 +141,7 @@ public class AtratoServer
       context.setResourceBase("/home/david");
     }
 
+    // for some reason, this is not working and it always returns 404. that's why I'm not using injection for now
     //ServletHolder jerseyServlet = new ServletHolder(new ServletContainer(resourceConfig()));
     //context.addServlet(jerseyServlet, "/ws/*");
 

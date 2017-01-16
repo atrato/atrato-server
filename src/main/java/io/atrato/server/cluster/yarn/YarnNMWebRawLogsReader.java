@@ -17,7 +17,6 @@ import org.apache.hadoop.yarn.api.records.ContainerReport;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.ConverterUtils;
-import org.apache.http.message.BasicLineFormatter;
 
 import com.sun.jersey.api.client.WebResource;
 
@@ -42,7 +41,6 @@ public class YarnNMWebRawLogsReader extends YarnContainerLogsReader
       Pattern pattern = Pattern.compile("(https?://[^/]+)/");
       Matcher matcher = pattern.matcher(containerLogUrl);
       if (!matcher.find()) {
-        System.out.println("@@@@@ " + containerLogUrl);
         throw new IOException("Cannot get nm web url");
       }
       String nmUrlPrefix = matcher.group(1);

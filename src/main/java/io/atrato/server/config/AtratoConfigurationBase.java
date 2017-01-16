@@ -1,10 +1,41 @@
 package io.atrato.server.config;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Created by david on 12/26/16.
  */
 public abstract class AtratoConfigurationBase implements AtratoConfiguration
 {
+  protected Map<String, Entry> configEntries = new HashMap<>();
+
+  @Override
+  public Entry get(String name)
+  {
+    return configEntries.get(name);
+  }
+
+  @Override
+  public void set(String name, String value, String description)
+  {
+    configEntries.put(name, new Entry(name, value, description));
+  }
+
+  @Override
+  public void delete(String name)
+  {
+    configEntries.remove(name);
+  }
+
+  @Override
+  public Collection<Entry> getEntries()
+  {
+    return Collections.unmodifiableCollection(configEntries.values());
+  }
+
   @Override
   public String getValue(String name)
   {
