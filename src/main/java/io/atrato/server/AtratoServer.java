@@ -50,7 +50,7 @@ public class AtratoServer
 
   private static final String CONFIG_KEY_PREFIX = "atrato.server.";
   private static final String CONFIG_KEY_STATIC_RESOURCE_BASE = CONFIG_KEY_PREFIX + "staticResourceBase";
-  private static final String CONFIG_KEY_ADDRESS = CONFIG_KEY_PREFIX + "address";
+  private static final String CONFIG_KEY_LISTEN_ADDRESS = CONFIG_KEY_PREFIX + "listenAddress";
 
   private String host = DEFAULT_HOST;
   private int port = DEFAULT_PORT;
@@ -62,8 +62,8 @@ public class AtratoServer
   private static Class<?> classInJar = AtratoServer.class;
   private static String gitPropertiesResource = artifactId + ".git.properties";
 
-  private static final String CMD_OPTION_ADDRESS = "address";
-  private static final String CMD_OPTION_CONFIGLOCATION = "configLocation";
+  private static final String CMD_OPTION_LISTEN_ADDRESS = "listenAddress";
+  private static final String CMD_OPTION_CONFIG_LOCATION = "configLocation";
 
   private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:atrato;create=true";
   public static final VersionInfo ATRATO_SERVER_VERSION = new VersionInfo(classInJar, groupId, artifactId, gitPropertiesResource);
@@ -81,16 +81,16 @@ public class AtratoServer
   void init(String[] args) throws ParseException, IOException, ConfigurationException
   {
     Options options = new Options();
-    options.addOption(CMD_OPTION_ADDRESS, true, "Address to listen to. Default is " + DEFAULT_HOST + ":" + DEFAULT_PORT);
-    options.addOption(CMD_OPTION_CONFIGLOCATION, true, "Configuration location url. Default is " + DEFAULT_CONFIG_LOCATION);
+    options.addOption(CMD_OPTION_LISTEN_ADDRESS, true, "Address to listen to. Default is " + DEFAULT_HOST + ":" + DEFAULT_PORT);
+    options.addOption(CMD_OPTION_CONFIG_LOCATION, true, "Configuration location url. Default is " + DEFAULT_CONFIG_LOCATION);
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
-    String address = cmd.getOptionValue(CMD_OPTION_ADDRESS);
-    if (address != null) {
+    String listenAddress = cmd.getOptionValue(CMD_OPTION_LISTEN_ADDRESS);
+    if (listenAddress != null) {
 
       Pattern pattern = Pattern.compile("(.+:)?(\\d+)");
-      Matcher matcher = pattern.matcher(address);
+      Matcher matcher = pattern.matcher(listenAddress);
 
       if (matcher.find()) {
         String hostString = matcher.group(1);
@@ -99,12 +99,12 @@ public class AtratoServer
         }
         port = Integer.valueOf(matcher.group(2));
       } else {
-        throw new ParseException("address must be in this format: [host:]port");
+        throw new ParseException("listenAddress must be in this format: [host:]port");
       }
 
     }
 
-    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIGLOCATION);
+    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
     if (configLocation == null) {
       configLocation = DEFAULT_CONFIG_LOCATION;
     }
