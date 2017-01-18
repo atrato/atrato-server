@@ -28,6 +28,7 @@ import org.apache.commons.cli.ParseException;
 import com.google.common.base.Throwables;
 
 import com.datatorrent.common.util.JacksonObjectMapperProvider;
+import com.datatorrent.stram.security.StramUserLogin;
 import com.datatorrent.stram.util.VersionInfo;
 
 import io.atrato.server.cluster.Cluster;
@@ -51,6 +52,9 @@ public class AtratoServer
   private static final String CONFIG_KEY_PREFIX = "atrato.server.";
   private static final String CONFIG_KEY_STATIC_RESOURCE_BASE = CONFIG_KEY_PREFIX + "staticResourceBase";
   private static final String CONFIG_KEY_LISTEN_ADDRESS = CONFIG_KEY_PREFIX + "listenAddress";
+  private static final String CONFIG_KEY_SECURITY_PREFIX = CONFIG_KEY_PREFIX + "security.";
+  private static final String CONFIG_KEY_SECURITY_KERBEROS_PRINCIPAL = CONFIG_KEY_SECURITY_PREFIX + "kerberos.principal";
+  private static final String CONFIG_KEY_SECURITY_KERBEROS_KEYTAB = CONFIG_KEY_SECURITY_PREFIX + "kerberos.keytab";
 
   private String host = DEFAULT_HOST;
   private int port = DEFAULT_PORT;
@@ -127,6 +131,13 @@ public class AtratoServer
     }
     configuration.load();
     cluster = new YarnCluster();
+
+    AtratoConfiguration.Entry kerberosPrincipal = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_PRINCIPAL);
+    AtratoConfiguration.Entry kerberosKeyTab = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_KEYTAB);
+
+    if (kerberosPrincipal != null && kerberosKeyTab != null) {
+      StramUserLogin.authenticate(kerberosPrincipal.getValue(), kerberosKeyTab.getValue());
+    }
   }
 
   void run() throws Exception
