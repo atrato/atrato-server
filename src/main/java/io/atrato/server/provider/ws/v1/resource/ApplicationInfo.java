@@ -8,5 +8,5 @@ public interface ApplicationInfo
   String getId();
   String getName();
   String getState();
-  String getUser();
+  String getOwner();
 }

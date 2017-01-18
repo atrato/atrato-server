@@ -18,6 +18,7 @@ public class FileConfiguration extends AtratoConfigurationBase
   private final File file;
   private final ObjectMapper mapper = new ObjectMapper();
   private final Map<String, Entry> entries = new HashMap<>();
+  private boolean dirty = false;
 
   public FileConfiguration(String filename)
   {
@@ -64,21 +65,31 @@ public class FileConfiguration extends AtratoConfigurationBase
   @Override
   public void set(String name, String value, String description)
   {
-    entries.put(name, new Entry(name, value, description));
+    super.set(name, value, description);
+    dirty = true;
   }
 
   @Override
-  public void save() throws IOException
+  public void delete(String name)
   {
-    Map<String, Collection<Entry>> m = new HashMap<>();
-    m.put("configuration", entries.values());
-    mapper.writeValue(this.file, m);
+    super.delete(name);
+    dirty = true;
   }
 
   @Override
-  public AtratoConfiguration.Entry get(String name)
+  public void save(boolean force) throws IOException
   {
-    return entries.get(name);
+    if (dirty || force) {
+      Map<String, Collection<Entry>> m = new HashMap<>();
+      m.put("configuration", entries.values());
+      mapper.writeValue(this.file, m);
+      dirty = false;
+    }
+  }
+
+  @Override
+  public void close() throws IOException
+  {
   }
 
 }

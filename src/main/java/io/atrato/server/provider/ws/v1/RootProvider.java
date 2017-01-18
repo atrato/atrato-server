@@ -28,6 +28,12 @@ public class RootProvider
     return AppPackagesProvider.INSTANCE;
   }
 
+  @Path("config")
+  public ConfigProvider getConfigProvider()
+  {
+    return ConfigProvider.INSTANCE;
+  }
+
   @GET
   @Produces(MediaType.APPLICATION_JSON)
   @Path("about")

@@ -269,7 +269,29 @@ we would be able to use something like `enunciate` to auto generate REST API doc
 automatically.
 
 * YARN Timeline Server is relatively new and it's buggy. When the application is running and when the containers of a previous attempt is queried,
-it actually returns the containers of the current attempt. https://issues.apache.org/jira/browse/YARN-6048
+it actually returns the containers of the current attempt. https://issues.apache.org/jira/browse/YARN-6008
+
+#### Installer
+
+##### Config flow
+
+* DFS, hadoop location
+* jdbc in config file for bootstrap
+
+##### bash script (Thomas will work on it)
+
+* Port number from command line
+
+##### Security
+
+* keytab, secured cluster
+* User and RBAC not needed yet
+
+##### Container Log Retrieval
+
+* grep regex
+
+##### App Packages
 
 ### Miscellaneous
 
