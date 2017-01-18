@@ -1,8 +1,8 @@
 # DO NOT MODIFY THIS FILE - customize settings in env.sh
 
-# Get current directory in a sourced file context
-env_dir="$( cd -P "$( dirname "$BASH_SOURCE" )" && pwd )"
-[[ -f "${env_dir}/env.sh" ]] && . "${env_dir}/custom-env.sh"
+# load custom settings
+PWD="$( cd -P "$( dirname "$BASH_SOURCE" )" && pwd )"
+[[ -f "${PWD}/env.sh" ]] && . "${PWD}/env.sh"
 
 realDir() {
   SOURCE="${1:-${BASH_SOURCE[0]}}"
@@ -30,7 +30,7 @@ findJava() {
 ATRATO_HADOOP_CMD="${ATRATO_HADOOP_CMD:-$(findHadoop)}"
 ATRATO_JAVA_CMD="${ATRATO_JAVA_CMD:-$(findJava)}"
 
-ATRATO_VERSION=SET_BY_INSTALLER
+ATRATO_VERSION=${project.version}
 ATRATO_ROOT_DIR="${ATRATO_ROOT_DIR:-${HOME}/atrato}"
 ATRATO_LOG_DIR="${ATRATO_LOG_DIR:-${ATRATO_ROOT_DIR}/logs}"
 ATRATO_RUN_DIR="${ATRATO_RUN_DIR:-${ATRATO_ROOT_DIR}/run}"

@@ -217,6 +217,7 @@
                   <goal>exec</goal>
                 </goals>
                 <configuration>
+                  <!-- get makeself from https://github.com/tweise/makeself.git and put it in $PATH -->
                   <executable>makeself.sh</executable>
                   <commandlineArgs>${installer.image.dir} target/${project.artifactId}-${project.version}.bin "Atrato Installer" ./install.sh</commandlineArgs>
                 </configuration>
