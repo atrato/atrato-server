@@ -1,8 +1,5 @@
 #!/bin/bash -x
 
-#TODO should be replaced during build
-ATRATO_VERSION="1.0.0"
-
 DEBUG=0
 
 log() { printf "%b\n" "$*"; }
@@ -35,9 +32,6 @@ else
   error "Root install currently not supported."
   abortInstall
 fi
-
-# record install version
-sed -i "s|^ATRATO_VERSION=.*$|ATRATO_VERSION=${ATRATO_VERSION}|" "${SCRIPT_DIR}/conf/env-system.sh"
 
 # replace or add variables in env file
 updateEnvFile() {
@@ -86,6 +80,9 @@ else
 fi
 
 copyFilesToTargetDir() {
+  for d in "${ATRATO_RELEASES_DIR}" "${ATRATO_LOG_DIR}" "${ATRATO_RUN_DIR}"; do
+    mkdir -p "${d}" || (error "Unable to create directory ${d}"; exit_install; )
+  done
   [[ "${SCRIPT_DIR}" == "${ATRATO_RELEASE_DIR}"  ]] && return 0
   [[ -e "${ATRATO_RELEASE_DIR}" ]] && rm -rf "${ATRATO_RELEASE_DIR}"
   debug "copying from ${SCRIPT_DIR} to ${ATRATO_RELEASE_DIR}"
@@ -100,7 +97,7 @@ localStop() {
   error "localStop not implemented yet"
 }
 
-linkCurrentRelease() {
+linkAsCurrentRelease() {
   rm -f "${ATRATO_RELEASES_DIR}"/current
   ln -nsf "${ATRATO_RELEASE_DIR}" "${ATRATO_RELEASES_DIR}"/current
 }
@@ -116,7 +113,7 @@ echoInstallLocation
 debug "---------- Performing installation ----------"
 localStop
 copyFilesToTargetDir
-linkCurrentRelease
+linkAsCurrentRelease
 localStart
 
 exit 0
