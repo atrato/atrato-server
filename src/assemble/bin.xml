@@ -25,8 +25,12 @@
       <outputDirectory>lib</outputDirectory>
     </fileSet>
     <fileSet>
-      <directory>${basedir}/target/atrato-server-deps</directory>
+      <directory>${basedir}/target/lib</directory>
       <outputDirectory>lib</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/target/hadoop-lib</directory>
+      <outputDirectory>hadoop-lib</outputDirectory>
     </fileSet>
   </fileSets>
   <dependencySets>

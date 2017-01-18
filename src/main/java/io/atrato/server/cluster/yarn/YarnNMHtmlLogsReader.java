@@ -6,7 +6,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -15,6 +14,10 @@ import java.util.regex.Pattern;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
+
+import com.sun.jersey.api.client.WebResource;
+
+import com.datatorrent.stram.util.WebServicesClient;
 
 import io.atrato.server.util.LineReader;
 
@@ -28,10 +31,13 @@ public class YarnNMHtmlLogsReader extends YarnContainerLogsReader
 
   public YarnNMHtmlLogsReader(ContainerReport containerReport) throws IOException
   {
-    String logUrl = containerReport.getLogUrl();
-    URL url = new URL(logUrl);
     String content;
-    try (InputStream is = url.openStream();
+    String logUrl = containerReport.getLogUrl();
+    WebServicesClient webServicesClient = new WebServicesClient();
+    WebResource wr = webServicesClient.getClient().resource(logUrl);
+    WebResource.Builder builder = wr.getRequestBuilder();
+
+    try (InputStream is = webServicesClient.process(builder, InputStream.class, new WebServicesClient.GetWebServicesHandler<InputStream>());
         ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
       IOUtils.copy(is, baos);
       content = baos.toString();
@@ -62,8 +68,12 @@ public class YarnNMHtmlLogsReader extends YarnContainerLogsReader
     if (location == null) {
       throw new FileNotFoundException();
     }
-    URL url = new URL(location);
-    InputStream is = url.openStream();
+    WebServicesClient webServicesClient = new WebServicesClient();
+    WebResource wr = webServicesClient.getClient().resource(location);
+    WebResource.Builder builder = wr.getRequestBuilder();
+
+    InputStream is = webServicesClient
+        .process(builder, InputStream.class, new WebServicesClient.GetWebServicesHandler<InputStream>());
     BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(is));
     return new LineReader(bufferedReader)
     {

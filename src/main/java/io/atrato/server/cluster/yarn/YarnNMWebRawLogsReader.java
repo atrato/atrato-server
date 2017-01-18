@@ -5,7 +5,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -47,8 +46,13 @@ public class YarnNMWebRawLogsReader extends YarnContainerLogsReader
       String applicationId = applicationReport.getApplicationId().toString();
       String containerId = containerReport.getContainerId().toString();
       logUrl = nmUrlPrefix + "/logs/" + logDirs + "/" + applicationId + "/" + containerId;
-      URL url = new URL(logUrl);
-      try (BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream()))) {
+
+      WebServicesClient webServicesClient = new WebServicesClient();
+      WebResource wr = webServicesClient.getClient().resource(logUrl);
+      WebResource.Builder builder = wr.getRequestBuilder();
+
+      try (InputStream is = webServicesClient.process(builder, InputStream.class, new WebServicesClient.GetWebServicesHandler<InputStream>());
+          BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
         Pattern htmlPattern = Pattern.compile("<TR><TD><A HREF=\".+\">(.+)&nbsp;</TD><TD ALIGN=right>(\\d+) bytes&nbsp;</TD><TD>.*</TD></TR>");
         String line;
         while ((line = br.readLine()) != null) {
@@ -79,7 +83,6 @@ public class YarnNMWebRawLogsReader extends YarnContainerLogsReader
     }
 
     String url = logUrl + "/" + name;
-    System.out.println("URL: " + url);
     WebServicesClient webServicesClient = new WebServicesClient();
     WebResource wr = webServicesClient.getClient().resource(url);
     WebResource.Builder builder = wr.getRequestBuilder();

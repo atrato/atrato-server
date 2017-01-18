@@ -172,7 +172,6 @@
         <activeByDefault>false</activeByDefault>
       </activation>
       <properties>
-        <hadoop.version>2.6.0</hadoop.version>
         <installer.image.dir>target/${project.artifactId}-${project.version}-bin/${project.artifactId}-${project.version}</installer.image.dir>
       </properties>
       <build>
