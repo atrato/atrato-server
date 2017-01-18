@@ -120,6 +120,7 @@
       </activation>
       <properties>
         <hadoop.version>2.6.0</hadoop.version>
+        <installer.image.dir>target/${project.artifactId}-${project.version}-bin/${project.artifactId}-${project.version}</installer.image.dir>
       </properties>
       <build>
         <plugins>
@@ -201,6 +202,24 @@
                 <goals>
                   <goal>single</goal>
                 </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.5.0</version>
+            <groupId>org.codehaus.mojo</groupId>
+            <executions>
+              <execution>
+                <id>makeself</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>makeself.sh</executable>
+                  <commandlineArgs>${installer.image.dir} target/${project.artifactId}-${project.version}.bin "Atrato Installer" ./install.sh</commandlineArgs>
+                </configuration>
               </execution>
             </executions>
           </plugin>
