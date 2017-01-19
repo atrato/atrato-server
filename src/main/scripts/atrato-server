@@ -4,7 +4,7 @@
 # if not exists, assume development mode
 
 build_dir="$( dirname "$0" )/../../../target"
-atrato_server_jar=$(echo $build_dir/atrato-server.jar)
+atrato_server_jar=$(echo $build_dir/atrato-server-*.jar)
 java_exec=$JAVA_HOME/bin/java
 
 HADOOP_PREFIX=${HADOOP_PREFIX:-$HADOOP_HOME}

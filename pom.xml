@@ -142,10 +142,15 @@
       <version>${apex.version}</version>
       <exclusions>
         <exclusion>
+          <!-- Excluding hadoop dependencies. They are instead placed in the provided scope, and should not be used
+           at run-time unless Hadoop installation is not detected. If there is a Hadoop installation, the libraries in
+           the Hadoop installation directory should be used in run-time instead. -->
           <groupId>org.apache.hadoop</groupId>
           <artifactId>*</artifactId>
         </exclusion>
         <exclusion>
+          <!-- Excluding the jersey libraries from apex-engine because it uses javax.ws.rs-api 1.x, and it conflicts
+            with 2.x used in atrato-server -->
           <groupId>com.sun.jersey</groupId>
           <artifactId>*</artifactId>
         </exclusion>
