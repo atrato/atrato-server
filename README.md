@@ -273,6 +273,23 @@ it actually returns the containers of the current attempt. https://issues.apache
 
 #### Installer
 
+The installer is a self-extracting binary that let's you setup the server on a Linux machine without having to build it locally.
+
+Before building the installer, you need to install makeself in your environment. Get it from https://github.com/tweise/makeself.git and add it to `$PATH`.
+
+To build the binary run:
+
+```
+mvn package -Prelease -DskipTests
+```
+
+To test the installer:
+
+```
+./target/atrato-server-0.1.0-SNAPSHOT.bin
+
+```
+
 ##### Config flow
 
 * DFS, hadoop location
