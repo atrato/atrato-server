@@ -245,6 +245,25 @@
             </executions>
           </plugin>
           <plugin>
+            <groupId>com.googlecode.maven-download-plugin</groupId>
+            <artifactId>download-maven-plugin</artifactId>
+            <version>1.3.0</version>
+            <executions>
+              <execution>
+                <id>wget-apex-script</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>wget</goal>
+                </goals>
+                <configuration>
+                  <url>https://raw.githubusercontent.com/apache/apex-core/v3.5.0/engine/src/main/scripts/apex</url>
+                  <outputDirectory>${project.build.directory}/scripts</outputDirectory>
+                  <md5>f7c1113407041cf55430709b01d9211f</md5>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
             <artifactId>maven-assembly-plugin</artifactId>
             <version>3.0.0</version>
             <configuration>
