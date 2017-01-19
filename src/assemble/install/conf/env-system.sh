@@ -40,3 +40,7 @@ ATRATO_HOME="${ATRATO_RELEASE_DIR}"
 
 # Export environment variables
 for var in ATRATO_HOME ATRATO_LOG_DIR ATRATO_RUN_DIR ATRATO_HADOOP_CMD ATRATO_JAVA_CMD; do export $var; done
+
+# for apex script compatibility
+DT_HADOOP=$ATRATO_HADOOP_CMD
+
