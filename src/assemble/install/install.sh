@@ -87,6 +87,8 @@ copyFilesToTargetDir() {
   [[ -e "${ATRATO_RELEASE_DIR}" ]] && rm -rf "${ATRATO_RELEASE_DIR}"
   debug "copying from ${SCRIPT_DIR} to ${ATRATO_RELEASE_DIR}"
   cp -r "${SCRIPT_DIR}"  "${ATRATO_RELEASE_DIR}" || (error "Unable to copy installation to ${ATRATO_RELEASE_DIR}"; abortInstall; )
+  # for apex script compatibility
+  ln -nsf "env-system.sh" "${ATRATO_RELEASE_DIR}"/conf/dt-env.sh
 }
 
 localStart() {
