@@ -1,18 +1,31 @@
 #!/bin/bash
 
-# TODO: source atrato-env.sh for environment variables like HADOOP_PREFIX for installed mode
-# if not exists, assume development mode
+cd $(dirname $0)
 
-build_dir="$( dirname "$0" )/../../../target"
-atrato_server_jar=$(echo $build_dir/atrato-server-*.jar)
-java_exec=$JAVA_HOME/bin/java
+if [ -f ../conf/env-system.sh ]; then
+  . ../conf/env-system.sh
+  atrato_lib=$ATRATO_HOME/lib/*
+  internal_hadoop_lib=$ATRATO_HOME/hadoop-lib/*
+else
+  # development mode
+  build_dir="$(dirname "$0")/../../../target"
+  atrato_lib=$(echo $build_dir/atrato-server-*.jar):$build_dir/lib/*
+  internal_hadoop_lib=$build_dir/hadoop-lib/*
+fi
+
+if [ ! -z "$JAVA_HOME" ]; then
+  java_exec=$JAVA_HOME/bin/java
+else
+  java_exec=java
+fi
 
 HADOOP_PREFIX=${HADOOP_PREFIX:-$HADOOP_HOME}
+export HADOOP_PREFIX
 
 if [ -d "$HADOOP_PREFIX" ]; then
   hadoop_classpath=$($HADOOP_PREFIX/bin/hadoop classpath)
 else
-  hadoop_classpath=$BUILD_DIR/hadoop-lib/*
+  hadoop_classpath=$internal_hadoop_lib
 fi
 
 if [ ! -z "$ATRATO_SERVER_LISTEN_ADDRESS" ]; then
@@ -23,4 +36,12 @@ if [ ! -z "$ATRATO_SERVER_CONFIG_LOCATION" ]; then
   ATRATO_SERVER_DEFAULT_OPTS="$ATRATO_SERVER_DEFAULT_OPTS -configLocation $ATRATO_SERVER_CONFIG_LOCATION"
 fi
 
-$java_exec -cp $atrato_server_jar:$build_dir/lib/*:$hadoop_classpath $ATRATO_SERVER_JVM_OPTS io.atrato.server.AtratoServer $ATRATO_SERVER_DEFAULT_OPTS "$@"
+if [ ! -z "$ATRATO_SERVER_KERBEROS_PRINCIPAL" ]; then
+  ATRATO_SERVER_DEFAULT_OPTS="$ATRATO_SERVER_DEFAULT_OPTS -kerberosPrincipal $ATRATO_SERVER_KERBEROS_PRINCIPAL"
+fi
+
+if [ ! -z "$ATRATO_SERVER_KERBEROS_KEYTAB" ]; then
+  ATRATO_SERVER_DEFAULT_OPTS="$ATRATO_SERVER_DEFAULT_OPTS -kerberosKeytab $ATRATO_SERVER_KERBEROS_KEYTAB"
+fi
+
+$java_exec -cp $atrato_lib:$hadoop_classpath $ATRATO_SERVER_JVM_OPTS io.atrato.server.AtratoServer $ATRATO_SERVER_DEFAULT_OPTS "$@"

@@ -68,6 +68,8 @@ public class AtratoServer
 
   private static final String CMD_OPTION_LISTEN_ADDRESS = "listenAddress";
   private static final String CMD_OPTION_CONFIG_LOCATION = "configLocation";
+  private static final String CMD_OPTION_KERBEROS_PRINCIPAL = "kerberosPrincipal";
+  private static final String CMD_OPTION_KERBEROS_KEYTAB = "kerberosKeytab";
 
   private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:atrato;create=true";
   public static final VersionInfo ATRATO_SERVER_VERSION = new VersionInfo(classInJar, groupId, artifactId, gitPropertiesResource);
@@ -86,11 +88,18 @@ public class AtratoServer
   {
     Options options = new Options();
     options.addOption(CMD_OPTION_LISTEN_ADDRESS, true, "Address to listen to. Default is " + DEFAULT_HOST + ":" + DEFAULT_PORT);
+    options.addOption(CMD_OPTION_KERBEROS_PRINCIPAL, true, "Kerberos Principal");
+    options.addOption(CMD_OPTION_KERBEROS_KEYTAB, true, "Kerberos Keytab");
     options.addOption(CMD_OPTION_CONFIG_LOCATION, true, "Configuration location url. Default is " + DEFAULT_CONFIG_LOCATION);
+
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
 
     String listenAddress = cmd.getOptionValue(CMD_OPTION_LISTEN_ADDRESS);
+    String kerberosPrincipal = cmd.getOptionValue(CMD_OPTION_KERBEROS_PRINCIPAL);
+    String kerberosKeytab = cmd.getOptionValue(CMD_OPTION_KERBEROS_KEYTAB);
+    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
+
     if (listenAddress != null) {
 
       Pattern pattern = Pattern.compile("(.+:)?(\\d+)");
@@ -108,7 +117,6 @@ public class AtratoServer
 
     }
 
-    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
     if (configLocation == null) {
       configLocation = DEFAULT_CONFIG_LOCATION;
     }
@@ -132,11 +140,18 @@ public class AtratoServer
     configuration.load();
     cluster = new YarnCluster();
 
-    AtratoConfiguration.Entry kerberosPrincipal = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_PRINCIPAL);
-    AtratoConfiguration.Entry kerberosKeyTab = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_KEYTAB);
-
-    if (kerberosPrincipal != null && kerberosKeyTab != null) {
-      StramUserLogin.authenticate(kerberosPrincipal.getValue(), kerberosKeyTab.getValue());
+    if (kerberosPrincipal == null || kerberosKeytab == null) {
+      AtratoConfiguration.Entry kerberosPrincipalConfigEntry = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_PRINCIPAL);
+      AtratoConfiguration.Entry kerberosKeytabConfigEntry = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_KEYTAB);
+      if (kerberosPrincipalConfigEntry != null) {
+        kerberosPrincipal = kerberosPrincipalConfigEntry.getValue();
+      }
+      if (kerberosKeytabConfigEntry != null) {
+        kerberosKeytab = kerberosKeytabConfigEntry.getValue();
+      }
+    }
+    if (kerberosPrincipal != null && kerberosKeytab != null) {
+      StramUserLogin.authenticate(kerberosPrincipal, kerberosKeytab);
     }
   }
 

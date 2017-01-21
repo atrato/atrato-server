@@ -1,25 +1,33 @@
 # Atrato Server
 
-## How to test (for now)
-
-* Open atrato-server project with your IDE
-
-* Add the following to your run-time classpath
- (in IntelliJ IDEA, it's File->Project Structure->Modules->atrato-server->(+)->Choose directory, then move those directories before the hadoop dependencies)
-  * $HADOOP_PREFIX/etc/hadoop
-  * $HADOOP_PREFIX/share/hadoop/common/lib
-  * $HADOOP_PREFIX/share/hadoop/common
-  * $HADOOP_PREFIX/share/hadoop/hdfs
-  * $HADOOP_PREFIX/share/hadoop/hdfs/lib
-  * $HADOOP_PREFIX/share/hadoop/hdfs
-  * $HADOOP_PREFIX/share/hadoop/yarn/lib
-  * $HADOOP_PREFIX/share/hadoop/yarn
+## How to test
 
 * Start Hadoop (yarn and hdfs)
 
 * Optional: Start Yarn Timeline Server (experimental, necessary if you want attempt container info)
 
-* Run atrato-server in your IDE. (Go to AtratoServer class and Run)
+* Start Atrato Server (Choose one of the two methods below)
+
+  * Using command line
+    * Make sure HADOOP_PREFIX is set to your hadoop installation directory
+    * Run: `mvn install`
+    * Run: `src/main/scripts/atrato-server`
+
+  * Using your IDE (so you can debug using IDE)
+    * Open atrato-server project with your IDE
+
+    * Add the following to your run-time classpath
+ (in IntelliJ IDEA, it's File->Project Structure->Modules->atrato-server->(+)->Choose directory, then move those directories before the hadoop dependencies)
+      * $HADOOP_PREFIX/etc/hadoop
+      * $HADOOP_PREFIX/share/hadoop/common/lib
+      * $HADOOP_PREFIX/share/hadoop/common
+      * $HADOOP_PREFIX/share/hadoop/hdfs
+      * $HADOOP_PREFIX/share/hadoop/hdfs/lib
+      * $HADOOP_PREFIX/share/hadoop/hdfs
+      * $HADOOP_PREFIX/share/hadoop/yarn/lib
+      * $HADOOP_PREFIX/share/hadoop/yarn
+
+    * Run atrato-server in your IDE. (Go to AtratoServer class and Run)
 
 * Check the `/about` REST call:
 ```
@@ -295,18 +303,18 @@ To test the installer:
 * DFS, hadoop location
 * jdbc in config file for bootstrap
 
-##### bash script (Thomas will work on it)
+##### bash script
 
-* Port number from command line
+* Port number from command line (done)
 
 ##### Security
 
-* keytab, secured cluster
+* keytab, secured cluster (done)
 * User and RBAC not needed yet
 
 ##### Container Log Retrieval
 
-* grep regex
+* grep regex (done)
 
 ##### App Packages
 
