@@ -6,7 +6,7 @@ log() { printf "%b\n" "$*"; }
 debug() { (( ${DEBUG} )) && log "DEBUG: $*"; }
 error() { log "\nERROR: $*\n" ; }
 
-real_dir() {
+realDir() {
   SOURCE="${1:-${BASH_SOURCE[0]}}"
   while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
     SOURCE_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
@@ -17,7 +17,7 @@ real_dir() {
   echo "$SOURCE_DIR"
 }
 # find physical source directory
-SCRIPT_DIR=$(real_dir "${BASH_SOURCE[0]}")
+SCRIPT_DIR=$(realDir "${BASH_SOURCE[0]}")
 SCRIPT_NAME=$(basename "${BASH_SOURCE[0]}")
 
 abortInstall() {
@@ -92,11 +92,19 @@ copyFilesToTargetDir() {
 }
 
 localStart() {
-  error "localStart not implemented yet"
+  debug "Starting server.."
+  (cd ${ATRATO_RELEASE_DIR} && "${ATRATO_RELEASE_DIR}/bin/atrato-daemon" start server)
+  if [ $? -ne 0 ]; then
+    error "Failed to start the server. Please check ${ATRATO_LOG_DIR} for errors".
+    abortInstall
+  fi
 }
 
 localStop() {
-  error "localStop not implemented yet"
+  if [[ -f "${ATRATO_RELEASE_DIR}/bin/atrato-daemon" ]]; then
+    debug "Stopping server (if running)."
+    "${ATRATO_RELEASE_DIR}/bin/atrato-daemon" stop server
+  fi      
 }
 
 linkAsCurrentRelease() {
@@ -104,14 +112,10 @@ linkAsCurrentRelease() {
   ln -nsf "${ATRATO_RELEASE_DIR}" "${ATRATO_RELEASES_DIR}"/current
 }
 
-echoInstallLocation() {
-  echo ""
-  echo "Atrato ${ATRATO_VERSION} will be installed under ${ATRATO_RELEASE_DIR}"
-  echo ""
-}
-
 # Run installation
-echoInstallLocation
+echo ""
+echo "Atrato ${ATRATO_VERSION} will be installed under ${ATRATO_RELEASE_DIR}"
+echo ""
 debug "---------- Performing installation ----------"
 localStop
 copyFilesToTargetDir
@@ -119,4 +123,3 @@ linkAsCurrentRelease
 localStart
 
 exit 0
-

@@ -1,0 +1,190 @@
+#!/bin/bash -x
+
+USAGE="Usage: atrato-daemon (start|stop|stop-all) [(server)] [args]"
+
+STARTSTOP=$1
+DAEMON=${2:-server}
+ARGS=("${@:3}") # get remaining arguments as array
+
+bin=`dirname "$0"`
+bin=`cd "$bin"; pwd`
+
+. "$bin"/../conf/env-system.sh
+
+case $DAEMON in
+    (server)
+        CLASS_TO_RUN=io.atrato.server.AtratoServer
+        SINGLETON=1
+    ;;
+
+    (*)
+        echo "Unknown daemon '${DAEMON}'. $USAGE."
+        exit 1
+    ;;
+esac
+
+# construct the class path
+if [ -z "${ATRATO_RELEASE_DIR}" ]; then
+	# running in development mode from build directory
+	build_dir="$bin/../../../target"
+	atrato_server_jar=$(echo $build_dir/atrato-server-*.jar)
+	ATRATO_CLASSPATH=$atrato_server_jar:$build_dir/lib/*
+	ATRATO_HADOOP_CLASSPATH=$build_dir/hadoop-lib/*
+    if [ -d "${HADOOP_PREFIX}" ]; then
+        ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
+    fi
+    ATRATO_JAVA_CMD=${ATRATO_JAVA_CMD:-$([ -z $JAVA_HOME ] && echo java || echo $JAVA_HOME/bin/java)}
+    ATRATO_RUN_DIR=${ATRATO_RUN_DIR:-$build_dir/daemon-log/}
+    ATRATO_LOG_DIR=${ATRATO_LOG_DIR:-$build_dir/daemon-log/}
+else
+	ATRATO_CLASSPATH="${ATRATO_RELEASE_DIR}"/lib/*
+	ATRATO_HADOOP_CLASSPATH=$build_dir/hadoop-lib/*
+fi
+
+if [ -x "$ATRATO_HADOOP_CMD" ]; then
+    ATRATO_HADOOP_CLASSPATH=$($ATRATO_HADOOP_CMD classpath)
+fi	
+ATRATO_CLASSPATH=$ATRATO_CLASSPATH:$ATRATO_HADOOP_CLASSPATH
+
+ATRATO_IDENT_STRING=${ATRATO_IDENT_STRING:-$USER}
+
+pid=$ATRATO_RUN_DIR/atrato-$ATRATO_IDENT_STRING-$DAEMON.pid
+
+mkdir -p "$ATRATO_RUN_DIR"
+
+# Log files for daemons are indexed from the process ID's position in the PID
+# file. The following lock prevents a race condition during daemon startup
+# when multiple daemons read, index, and write to the PID file concurrently.
+# The lock is created on the PID directory since a lock file cannot be safely
+# removed. The daemon is started with the lock closed and the lock remains
+# active in this script until the script exits.
+command -v flock >/dev/null 2>&1
+if [[ $? -eq 0 ]]; then
+    exec 200<"$ATRATO_RUN_DIR"
+    flock 200
+fi
+
+# Ascending ID depending on number of lines in pid file.
+# This allows us to start multiple daemon of each type.
+id=$([ -f "$pid" ] && echo $(wc -l < $pid) || echo "0")
+
+log="${ATRATO_LOG_DIR}/atrato-${ATRATO_IDENT_STRING}-${DAEMON}-${id}-${HOSTNAME}.log"
+out="${ATRATO_LOG_DIR}/atrato-${ATRATO_IDENT_STRING}-${DAEMON}-${id}-${HOSTNAME}.out"
+
+JAVA_RUN=${ATRATO_JAVA_CMD}
+JAVA_VERSION=$(${JAVA_RUN} -version 2>&1 | sed 's/.*version "\(.*\)\.\(.*\)\..*"/\1\2/; 1q')
+
+# Only set JVM 8 arguments if we have correctly extracted the version
+if [[ ${JAVA_VERSION} =~ ^[-+]?[0-9]+$ ]]; then
+    if [ "$JAVA_VERSION" -lt 18 ]; then
+        JVM_ARGS="$JVM_ARGS -XX:MaxPermSize=256m"
+    fi
+fi
+
+if [ ! -z "$ATRATO_SERVER_LISTEN_ADDRESS" ]; then
+  ATRATO_SERVER_OPTS="$ATRATO_SERVER_OPTS -listenAddress $ATRATO_SERVER_LISTEN_ADDRESS"
+fi
+
+if [ ! -z "$ATRATO_SERVER_CONFIG_LOCATION" ]; then
+  ATRATO_SERVER_OPTS="$ATRATO_SERVER_OPTS -configLocation $ATRATO_SERVER_CONFIG_LOCATION"
+fi
+
+if [ ! -z "$ATRATO_SERVER_KERBEROS_PRINCIPAL" ]; then
+  ATRATO_SERVER_OPTS="$ATRATO_SERVER_OPTS -kerberosPrincipal $ATRATO_SERVER_KERBEROS_PRINCIPAL"
+fi
+
+if [ ! -z "$ATRATO_SERVER_KERBEROS_KEYTAB" ]; then
+  ATRATO_SERVER_OPTS="$ATRATO_SERVER_OPTS -kerberosKeytab $ATRATO_SERVER_KERBEROS_KEYTAB"
+fi
+
+case $STARTSTOP in
+
+    (start)
+        # Rotate log files
+        #rotateLogFile $log
+        #rotateLogFile $out
+
+        # Print a warning if daemons are already running on host
+        if [ -f $pid ]; then
+          active=()
+          while IFS='' read -r p || [[ -n "$p" ]]; do
+            kill -0 $p >/dev/null 2>&1
+            if [ $? -eq 0 ]; then
+              active+=($p)
+            fi
+          done < "${pid}"
+
+          count="${#active[@]}"
+          if [ ${count} -eq 0 ]; then
+             rm $pid # If all stopped, clean up pid file
+          else
+            if [ ${SINGLETON} -eq "1" ]; then
+                echo "[ERROR] $DAEMON is already running on $HOSTNAME."
+                exit 1
+            fi
+            echo "[INFO] $count instance(s) of $DAEMON are already running on $HOSTNAME."
+          fi
+        fi
+
+        echo "Starting $DAEMON daemon on host $HOSTNAME."
+        $JAVA_RUN $JVM_ARGS $ATRATO_SERVER_JVM_OPTS -cp $ATRATO_CLASSPATH ${CLASS_TO_RUN} $ATRATO_SERVER_OPTS "${ARGS[@]}" > "$out" 200<&- 2>&1 < /dev/null &
+
+        mypid=$!
+
+        # Add to pid file if successful start
+        if [[ ${mypid} =~ ^[-+]?[0-9]+$ ]] && kill -0 $mypid > /dev/null 2>&1 ; then
+            echo $mypid >> $pid
+        else
+            echo "Error starting $DAEMON daemon."
+            exit 1
+        fi
+    ;;
+
+    (stop)
+        if [ -f $pid ]; then
+            # Remove last in pid file
+            to_stop=$(tail -n 1 $pid)
+
+            if [ -z $to_stop ]; then
+                rm $pid # If all stopped, clean up pid file
+                echo "No $DAEMON daemon to stop on host $HOSTNAME."
+            else
+                sed \$d $pid > $pid.tmp # all but last line
+
+                # If all stopped, clean up pid file
+                [ $(wc -l < $pid.tmp) -eq 0 ] && rm $pid $pid.tmp || mv $pid.tmp $pid
+
+                if kill -0 $to_stop > /dev/null 2>&1; then
+                    echo "Stopping $DAEMON daemon (pid: $to_stop) on host $HOSTNAME."
+                    kill $to_stop
+                else
+                    echo "No $DAEMON daemon (pid: $to_stop) is running anymore on $HOSTNAME."
+                fi
+            fi
+        else
+            echo "No $DAEMON daemon to stop on host $HOSTNAME."
+        fi
+    ;;
+
+    (stop-all)
+        if [ -f $pid ]; then
+            mv $pid ${pid}.tmp
+
+            while read to_stop; do
+                if kill -0 $to_stop > /dev/null 2>&1; then
+                    echo "Stopping $DAEMON daemon (pid: $to_stop) on host $HOSTNAME."
+                    kill $to_stop
+                else
+                    echo "Skipping $DAEMON daemon (pid: $to_stop), because it is not running anymore on $HOSTNAME."
+                fi
+            done < ${pid}.tmp
+            rm ${pid}.tmp
+        fi
+    ;;
+
+    (*)
+        echo "Unexpected argument '$STARTSTOP'. $USAGE."
+        exit 1
+    ;;
+
+esac
