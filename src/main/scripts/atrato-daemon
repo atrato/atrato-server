@@ -28,8 +28,8 @@ if [ -z "${ATRATO_RELEASE_DIR}" ]; then
 	# running in development mode from build directory
 	build_dir="$bin/../../../target"
 	atrato_server_jar=$(echo $build_dir/atrato-server-*.jar)
-	ATRATO_CLASSPATH=$atrato_server_jar:$build_dir/hadoop-lib/*
-	ATRATO_HADOOP_CLASSPATH=$build_dir/lib/*
+	ATRATO_CLASSPATH=$atrato_server_jar:$build_dir/lib/*
+	ATRATO_HADOOP_CLASSPATH=$build_dir/hadoop-lib/*
     if [ -d "${HADOOP_PREFIX}" ]; then
         ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
     fi

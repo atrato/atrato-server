@@ -6,6 +6,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,7 +19,8 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.servlet.ServletContainer;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -43,6 +45,8 @@ import io.atrato.server.config.JDBCConfiguration;
  */
 public class AtratoServer
 {
+  private static final Logger LOG = LoggerFactory.getLogger(AtratoServer.class);
+	
   @Provider
   public static class JsonProvider extends JacksonObjectMapperProvider {}
 
@@ -210,6 +214,17 @@ public class AtratoServer
 
   public static void main(String[] args) throws Exception
   {
+    LOG.info("Starting with classpath: {}", System.getProperty("java.class.path"));
+    LOG.info("Working directory: {}", System.getProperty("user.dir"));
+    Map<String, String> envs = System.getenv();
+    LOG.info("\nDumping System Env: begin");
+    for (Map.Entry<String, String> env : envs.entrySet()) {
+      LOG.info("System env: key=" + env.getKey() + ", val=" + env.getValue());
+    }
+    LOG.info("Dumping System Env: end");
+
+    Class.forName("org.apache.derby.jdbc.EmbeddedDriver");    
+    
     AtratoServer as = new AtratoServer();
     as.init(args);
     as.run();
