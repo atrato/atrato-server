@@ -75,7 +75,7 @@ JAVA_RUN=${ATRATO_JAVA_CMD}
 JAVA_VERSION=$(${JAVA_RUN} -version 2>&1 | sed 's/.*version "\(.*\)\.\(.*\)\..*"/\1\2/; 1q')
 
 # Only set JVM 8 arguments if we have correctly extracted the version
-if [[ ${JAVA_VERSION} =~ ${IS_NUMBER} ]]; then
+if [[ ${JAVA_VERSION} =~ ^[-+]?[0-9]+$ ]]; then
     if [ "$JAVA_VERSION" -lt 18 ]; then
         JVM_ARGS="$JVM_ARGS -XX:MaxPermSize=256m"
     fi
@@ -132,7 +132,7 @@ case $STARTSTOP in
         mypid=$!
 
         # Add to pid file if successful start
-        if [[ ${mypid} =~ ${IS_NUMBER} ]] && kill -0 $mypid > /dev/null 2>&1 ; then
+        if [[ ${mypid} =~ ^[-+]?[0-9]+$ ]] && kill -0 $mypid > /dev/null 2>&1 ; then
             echo $mypid >> $pid
         else
             echo "Error starting $DAEMON daemon."
