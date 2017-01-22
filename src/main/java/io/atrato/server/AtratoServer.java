@@ -104,23 +104,6 @@ public class AtratoServer
     String kerberosKeytab = cmd.getOptionValue(CMD_OPTION_KERBEROS_KEYTAB);
     String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
 
-    if (listenAddress != null) {
-
-      Pattern pattern = Pattern.compile("(.+:)?(\\d+)");
-      Matcher matcher = pattern.matcher(listenAddress);
-
-      if (matcher.find()) {
-        String hostString = matcher.group(1);
-        if (hostString != null) {
-          host = hostString.substring(0, hostString.length() - 1);
-        }
-        port = Integer.valueOf(matcher.group(2));
-      } else {
-        throw new ParseException("listenAddress must be in this format: [host:]port");
-      }
-
-    }
-
     if (configLocation == null) {
       configLocation = DEFAULT_CONFIG_LOCATION;
     }
@@ -143,6 +126,28 @@ public class AtratoServer
     }
     configuration.load();
     cluster = new YarnCluster();
+
+    if (listenAddress == null) {
+      AtratoConfiguration.Entry listenAddressConfigEntry = configuration.get(CONFIG_KEY_LISTEN_ADDRESS);
+      if (listenAddressConfigEntry != null) {
+        listenAddress = listenAddressConfigEntry.getValue();
+      }
+    }
+
+    if (listenAddress != null) {
+      Pattern pattern = Pattern.compile("(.+:)?(\\d+)");
+      Matcher matcher = pattern.matcher(listenAddress);
+
+      if (matcher.find()) {
+        String hostString = matcher.group(1);
+        if (hostString != null) {
+          host = hostString.substring(0, hostString.length() - 1);
+        }
+        port = Integer.valueOf(matcher.group(2));
+      } else {
+        throw new ParseException("listenAddress must be in this format: [host:]port");
+      }
+    }
 
     if (kerberosPrincipal == null || kerberosKeytab == null) {
       AtratoConfiguration.Entry kerberosPrincipalConfigEntry = configuration.get(CONFIG_KEY_SECURITY_KERBEROS_PRINCIPAL);
