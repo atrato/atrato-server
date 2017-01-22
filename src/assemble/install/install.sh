@@ -93,7 +93,11 @@ copyFilesToTargetDir() {
 
 localStart() {
   debug "Starting server.."
-  "${ATRATO_RELEASE_DIR}/bin/atrato-daemon" start server
+  (cd ${ATRATO_RELEASE_DIR} && "${ATRATO_RELEASE_DIR}/bin/atrato-daemon" start server)
+  if [ $? -ne 0 ]; then
+    error "Failed to start the server. Please check ${ATRATO_LOG_DIR} for errors".
+    abortInstall
+  fi
 }
 
 localStop() {
@@ -108,14 +112,10 @@ linkAsCurrentRelease() {
   ln -nsf "${ATRATO_RELEASE_DIR}" "${ATRATO_RELEASES_DIR}"/current
 }
 
-echoInstallLocation() {
-  echo ""
-  echo "Atrato ${ATRATO_VERSION} will be installed under ${ATRATO_RELEASE_DIR}"
-  echo ""
-}
-
 # Run installation
-echoInstallLocation
+echo ""
+echo "Atrato ${ATRATO_VERSION} will be installed under ${ATRATO_RELEASE_DIR}"
+echo ""
 debug "---------- Performing installation ----------"
 localStop
 copyFilesToTargetDir
@@ -123,4 +123,3 @@ linkAsCurrentRelease
 localStart
 
 exit 0
-
