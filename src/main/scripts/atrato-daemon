@@ -33,7 +33,7 @@ if [ -z "${ATRATO_RELEASE_DIR}" ]; then
     if [ -d "${HADOOP_PREFIX}" ]; then
         ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
     fi
-    ATRATO_JAVA_CMD=${ATRATO_JAVA_CMD:-$JAVA_HOME/bin/java}
+    ATRATO_JAVA_CMD=${ATRATO_JAVA_CMD:-$([ -z $JAVA_HOME ] && echo java || echo $JAVA_HOME/bin/java)}
     ATRATO_RUN_DIR=${ATRATO_RUN_DIR:-$build_dir/daemon-log/}
     ATRATO_LOG_DIR=${ATRATO_LOG_DIR:-$build_dir/daemon-log/}
 else
