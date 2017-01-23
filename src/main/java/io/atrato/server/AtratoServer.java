@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -62,6 +64,9 @@ public class AtratoServer
 
   private String host = DEFAULT_HOST;
   private int port = DEFAULT_PORT;
+  private String atratoHomeDir;
+  private String staticResourceBaseDir;
+
   private static AtratoConfiguration configuration;
   private static Cluster cluster;
 
@@ -75,7 +80,7 @@ public class AtratoServer
   private static final String CMD_OPTION_KERBEROS_PRINCIPAL = "kerberosPrincipal";
   private static final String CMD_OPTION_KERBEROS_KEYTAB = "kerberosKeytab";
 
-  private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:atrato;create=true";
+  private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:${ATRATO_HOME}/db;create=true";
   public static final VersionInfo ATRATO_SERVER_VERSION = new VersionInfo(classInJar, groupId, artifactId, gitPropertiesResource);
 
   public static AtratoConfiguration getConfiguration()
@@ -104,8 +109,24 @@ public class AtratoServer
     String kerberosKeytab = cmd.getOptionValue(CMD_OPTION_KERBEROS_KEYTAB);
     String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
 
+    atratoHomeDir = System.getenv("ATRATO_HOME");
+    if (atratoHomeDir == null) {
+      LOG.info("ATRATO_HOME is not set. Assuming development mode.");
+      atratoHomeDir = System.getProperty("user.dir") + "/target/atrato_home";
+    }
+    createDirectories();
+
     if (configLocation == null) {
       configLocation = DEFAULT_CONFIG_LOCATION;
+    }
+    configLocation = configLocation.replace("${ATRATO_HOME}", atratoHomeDir);
+
+    System.setProperty("derby.stream.error.file", atratoHomeDir + "/logs/derby.log");
+
+    try {
+      Class.forName("org.apache.derby.jdbc.EmbeddedDriver");
+    } catch (ClassNotFoundException ex) {
+      throw Throwables.propagate(ex);
     }
 
     if (configLocation.startsWith("file:")) {
@@ -162,19 +183,24 @@ public class AtratoServer
     if (kerberosPrincipal != null && kerberosKeytab != null) {
       StramUserLogin.authenticate(kerberosPrincipal, kerberosKeytab);
     }
+    staticResourceBaseDir = configuration.getValue(CONFIG_KEY_STATIC_RESOURCE_BASE);
+    if (staticResourceBaseDir == null) {
+      staticResourceBaseDir = atratoHomeDir + "/htdocs";
+    }
+  }
+
+  private void createDirectories() throws IOException
+  {
+    Files.createDirectories(FileSystems.getDefault().getPath(atratoHomeDir, "htdocs"));
+    Files.createDirectories(FileSystems.getDefault().getPath(atratoHomeDir, "conf"));
+    Files.createDirectories(FileSystems.getDefault().getPath(atratoHomeDir, "logs"));
   }
 
   void run() throws Exception
   {
     ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
     context.setContextPath("/");
-    String staticResourceBase = configuration.getValue(CONFIG_KEY_STATIC_RESOURCE_BASE);
-    if (staticResourceBase != null) {
-      context.setResourceBase(staticResourceBase);
-    } else {
-      staticResourceBase = "/home/david";
-      context.setResourceBase("/home/david");
-    }
+    context.setResourceBase(staticResourceBaseDir);
 
     // for some reason, this is not working and it always returns 404. that's why I'm not using injection for now
     //ServletHolder jerseyServlet = new ServletHolder(new ServletContainer(resourceConfig()));
@@ -192,10 +218,8 @@ public class AtratoServer
         "jersey.config.server.provider.classnames",
         io.atrato.server.provider.ws.v1.RootProvider.class.getCanonicalName());
 
-    if (staticResourceBase != null) {
-      ServletHolder staticFilesServlet = context.addServlet(DefaultServlet.class, "/");
-      staticFilesServlet.setInitOrder(10);
-    }
+    ServletHolder staticFilesServlet = context.addServlet(DefaultServlet.class, "/");
+    staticFilesServlet.setInitOrder(10);
 
     try {
       jettyServer.start();
@@ -228,8 +252,6 @@ public class AtratoServer
     }
     LOG.info("Dumping System Env: end");
 
-    Class.forName("org.apache.derby.jdbc.EmbeddedDriver");    
-    
     AtratoServer as = new AtratoServer();
     as.init(args);
     as.run();
