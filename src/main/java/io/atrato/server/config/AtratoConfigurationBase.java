@@ -5,12 +5,35 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+
 /**
  * Created by david on 12/26/16.
  */
 public abstract class AtratoConfigurationBase implements AtratoConfiguration
 {
   protected Map<String, Entry> configEntries = new HashMap<>();
+
+  // for jackson serializing to hadoop configuration format
+  @JacksonXmlRootElement(localName = "configuration")
+  public static class ConfigurationForJackson
+  {
+    private Collection<Entry> entries;
+
+    public ConfigurationForJackson(Collection<Entry> entries)
+    {
+      this.entries = entries;
+    }
+
+    @JacksonXmlElementWrapper(useWrapping = false)
+    @JacksonXmlProperty(localName = "property")
+    public Collection<Entry> getEntries()
+    {
+      return entries;
+    }
+  }
 
   @Override
   public Entry get(String name)
