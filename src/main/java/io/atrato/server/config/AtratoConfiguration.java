@@ -4,11 +4,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+
 /**
  * Created by david on 12/22/16.
  */
 public interface AtratoConfiguration extends Closeable
 {
+  @JacksonXmlRootElement(localName = "property")
   class Entry
   {
     private String name;

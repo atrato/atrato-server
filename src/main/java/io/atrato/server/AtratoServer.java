@@ -1,6 +1,7 @@
 package io.atrato.server;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -8,6 +9,8 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,6 +38,8 @@ import com.datatorrent.common.util.JacksonObjectMapperProvider;
 import com.datatorrent.stram.security.StramUserLogin;
 import com.datatorrent.stram.util.VersionInfo;
 
+import io.atrato.server.apppackage.AppPackageRepository;
+import io.atrato.server.apppackage.JDBCAppPackageRepository;
 import io.atrato.server.cluster.Cluster;
 import io.atrato.server.cluster.yarn.YarnCluster;
 import io.atrato.server.config.AtratoConfiguration;
@@ -48,14 +53,14 @@ import io.atrato.server.config.JDBCConfiguration;
 public class AtratoServer
 {
   private static final Logger LOG = LoggerFactory.getLogger(AtratoServer.class);
-	
+
   @Provider
   public static class JsonProvider extends JacksonObjectMapperProvider {}
 
   private static final String DEFAULT_HOST = "0.0.0.0";
   private static final int DEFAULT_PORT = 8800;
 
-  private static final String CONFIG_KEY_PREFIX = "atrato.server.";
+  public static final String CONFIG_KEY_PREFIX = "atrato.server.";
   private static final String CONFIG_KEY_STATIC_RESOURCE_BASE = CONFIG_KEY_PREFIX + "staticResourceBase";
   private static final String CONFIG_KEY_LISTEN_ADDRESS = CONFIG_KEY_PREFIX + "listenAddress";
   private static final String CONFIG_KEY_SECURITY_PREFIX = CONFIG_KEY_PREFIX + "security.";
@@ -64,23 +69,34 @@ public class AtratoServer
 
   private String host = DEFAULT_HOST;
   private int port = DEFAULT_PORT;
-  private String atratoHomeDir;
-  private String staticResourceBaseDir;
+  private static String atratoHomeDir;
+  private static String staticResourceBaseDir;
 
+  private static String hadoopLocation;
+  private static String configLocation;
   private static AtratoConfiguration configuration;
+  private static AppPackageRepository appPackageRepository;
   private static Cluster cluster;
 
   private static String groupId = "io.atrato";
   private static String artifactId = "atrato-server";
   private static Class<?> classInJar = AtratoServer.class;
   private static String gitPropertiesResource = artifactId + ".git.properties";
+  private static List<Issue> issues = new ArrayList<>();
 
   private static final String CMD_OPTION_LISTEN_ADDRESS = "listenAddress";
   private static final String CMD_OPTION_CONFIG_LOCATION = "configLocation";
   private static final String CMD_OPTION_KERBEROS_PRINCIPAL = "kerberosPrincipal";
   private static final String CMD_OPTION_KERBEROS_KEYTAB = "kerberosKeytab";
+  private static final String CMD_OPTION_APP_PACKAGE_REPOSITORY_LOCATION = "appPackageRepositoryLocation";
+
+  private static final String ENV_ATRATO_HOME = "ATRATO_HOME";
+  private static final String ENV_ATRATO_HADOOP_CMD = "ATRATO_HADOOP_CMD";
+  private static final String ENV_ATRATO_CONFIG_LOCATION = "ATRATO_CONFIG_LOCATION";
 
   private static final String DEFAULT_CONFIG_LOCATION = "jdbc:derby:${ATRATO_HOME}/db;create=true";
+  private static final String DEFAULT_APP_PACKAGE_REPOSITORY_LOCATION = "jdbc:derby:${ATRATO_HOME}/db;create=true";
+
   public static final VersionInfo ATRATO_SERVER_VERSION = new VersionInfo(classInJar, groupId, artifactId, gitPropertiesResource);
 
   public static AtratoConfiguration getConfiguration()
@@ -88,10 +104,62 @@ public class AtratoServer
     return configuration;
   }
 
+  public static AppPackageRepository getAppPackageRepository()
+  {
+    return appPackageRepository;
+  }
+
   public static Cluster getCluster()
   {
     return cluster;
   }
+
+  public static void addIssue(Issue issue)
+  {
+    issues.add(issue);
+  }
+
+  public static List<Issue> getIssues()
+  {
+    return issues;
+  }
+
+  public static void setHadoopLocation(String hadoopLocation) throws IOException
+  {
+    if (!hadoopLocation.equals(getHadoopLocation())) {
+      AtratoServer.hadoopLocation = hadoopLocation;
+      saveCustomEnvFile();
+      addIssue(new Issue(Issue.IssueKey.RESTART_NEEDED, "Restarted needed because Hadoop location has been changed"));
+    }
+  }
+
+  public static String getHadoopLocation()
+  {
+    return hadoopLocation;
+  }
+
+  public static void setConfigLocation(String configLocation) throws IOException
+  {
+    if (!configLocation.equals(getConfigLocation())) {
+      AtratoServer.configLocation = configLocation;
+      saveCustomEnvFile();
+      addIssue(new Issue(Issue.IssueKey.RESTART_NEEDED, "Restarted needed because config location has been changed"));
+    }
+  }
+
+  public static String getConfigLocation()
+  {
+    return configLocation;
+  }
+
+  private static void saveCustomEnvFile() throws IOException
+  {
+    try (PrintWriter writer = new PrintWriter(atratoHomeDir + "/conf/env-custom.sh", "UTF-8")) {
+      writer.println("export " + ENV_ATRATO_HADOOP_CMD + "=\"" + hadoopLocation + "\"");
+      writer.println("export " + ENV_ATRATO_CONFIG_LOCATION + "=\"" + configLocation + "\"");
+    }
+  }
+
 
   void init(String[] args) throws ParseException, IOException, ConfigurationException
   {
@@ -100,6 +168,7 @@ public class AtratoServer
     options.addOption(CMD_OPTION_KERBEROS_PRINCIPAL, true, "Kerberos Principal");
     options.addOption(CMD_OPTION_KERBEROS_KEYTAB, true, "Kerberos Keytab");
     options.addOption(CMD_OPTION_CONFIG_LOCATION, true, "Configuration location url. Default is " + DEFAULT_CONFIG_LOCATION);
+    options.addOption(CMD_OPTION_APP_PACKAGE_REPOSITORY_LOCATION, true, "App Package Repository location url. Default is " + DEFAULT_APP_PACKAGE_REPOSITORY_LOCATION);
 
     CommandLineParser parser = new DefaultParser();
     CommandLine cmd = parser.parse(options, args);
@@ -107,19 +176,28 @@ public class AtratoServer
     String listenAddress = cmd.getOptionValue(CMD_OPTION_LISTEN_ADDRESS);
     String kerberosPrincipal = cmd.getOptionValue(CMD_OPTION_KERBEROS_PRINCIPAL);
     String kerberosKeytab = cmd.getOptionValue(CMD_OPTION_KERBEROS_KEYTAB);
-    String configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
+    configLocation = cmd.getOptionValue(CMD_OPTION_CONFIG_LOCATION);
+    String appPackageRepositoryLocation = cmd.getOptionValue(CMD_OPTION_APP_PACKAGE_REPOSITORY_LOCATION);
 
-    atratoHomeDir = System.getenv("ATRATO_HOME");
+    atratoHomeDir = System.getenv(ENV_ATRATO_HOME);
     if (atratoHomeDir == null) {
-      LOG.info("ATRATO_HOME is not set. Assuming development mode.");
+      LOG.info(ENV_ATRATO_HOME + " is not set. Assuming development mode.");
       atratoHomeDir = System.getProperty("user.dir") + "/target/atrato_home";
     }
     createDirectories();
 
+    hadoopLocation = System.getenv(ENV_ATRATO_HADOOP_CMD);
+
     if (configLocation == null) {
-      configLocation = DEFAULT_CONFIG_LOCATION;
+      String configLocationEnv = System.getenv("ATRATO_CONFIG_LOCATION");
+      configLocation = configLocationEnv == null ? DEFAULT_CONFIG_LOCATION : configLocationEnv;
     }
     configLocation = configLocation.replace("${ATRATO_HOME}", atratoHomeDir);
+
+    if (appPackageRepositoryLocation == null) {
+      appPackageRepositoryLocation = DEFAULT_APP_PACKAGE_REPOSITORY_LOCATION;
+    }
+    appPackageRepositoryLocation = appPackageRepositoryLocation.replace("${ATRATO_HOME}", atratoHomeDir);
 
     System.setProperty("derby.stream.error.file", atratoHomeDir + "/logs/derby.log");
 
@@ -146,6 +224,17 @@ public class AtratoServer
       throw new ParseException("configLocation only supports file and jdbc urls");
     }
     configuration.load();
+
+    if (appPackageRepositoryLocation.startsWith("jdbc:")) {
+      try {
+        appPackageRepository = new JDBCAppPackageRepository(appPackageRepositoryLocation);
+      } catch (Exception ex) {
+        throw Throwables.propagate(ex);
+      }
+    } else {
+      throw new ParseException("Only jdbc url is supported for appPackageRepositoryLocation for now");
+    }
+
     cluster = new YarnCluster();
 
     if (listenAddress == null) {

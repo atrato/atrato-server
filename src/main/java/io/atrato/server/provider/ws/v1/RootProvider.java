@@ -34,6 +34,12 @@ public class RootProvider
     return ConfigProvider.INSTANCE;
   }
 
+  @Path("issues")
+  public IssuesProvider getIssuesProvider()
+  {
+    return IssuesProvider.INSTANCE;
+  }
+
   @GET
   @Produces(MediaType.APPLICATION_JSON)
   @Path("about")

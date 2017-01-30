@@ -1,5 +1,6 @@
 package io.atrato.server.apppackage;
 
+import java.io.InputStream;
 import java.util.Collection;
 
 import io.atrato.server.provider.ws.v1.resource.AppPackageInfo;
@@ -17,5 +18,5 @@ public interface AppPackageRepository
 
   Collection<AppPackageInfo> getAppPackagesAccessibleBy(String user);
 
-  void addAppPackage(AppPackageInfo appPackageInfo);
+  void saveAppPackage(AppPackageInfo appPackageInfo, InputStream fileStream);
 }

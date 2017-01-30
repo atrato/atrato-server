@@ -1,5 +1,6 @@
 package io.atrato.server.config;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -9,11 +10,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
+
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
+
+import com.datatorrent.stram.client.StramClientUtils;
 
 /**
  * Created by david on 1/10/17.
@@ -86,6 +94,7 @@ public class JDBCConfiguration extends AtratoConfigurationBase
   @Override
   public void save(boolean force) throws IOException
   {
+    Collection<Entry> entries = configEntries.values();
     try {
       connection.setAutoCommit(false);
       if (force) {
@@ -93,7 +102,7 @@ public class JDBCConfiguration extends AtratoConfigurationBase
           stmt.execute("DELETE FROM configuration");
         }
         try (PreparedStatement insertStatement = connection.prepareStatement("INSERT INTO configuration VALUES (?, ?, ?)")) {
-          for (Entry entry : configEntries.values()) {
+          for (Entry entry : entries) {
             insertStatement.setString(1, entry.getName());
             insertStatement.setString(2, entry.getValue());
             insertStatement.setString(3, entry.getDescription());
@@ -127,6 +136,10 @@ public class JDBCConfiguration extends AtratoConfigurationBase
     } catch (SQLException ex) {
       throw new IOException(ex);
     }
+
+    XmlMapper mapper = new XmlMapper();
+    mapper.writer().withDefaultPrettyPrinter()
+        .writeValue(new File(StramClientUtils.getConfigDir(), StramClientUtils.DT_SITE_XML_FILE), new ConfigurationForJackson(entries));
   }
 
   @Override

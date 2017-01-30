@@ -2,13 +2,11 @@ package io.atrato.server.config;
 
 import java.io.File;
 import java.io.IOException;
-import java.text.ParseException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.codehaus.jackson.map.ObjectMapper;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 
 /**
  * Created by david on 12/24/16.
@@ -16,8 +14,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 public class FileConfiguration extends AtratoConfigurationBase
 {
   private final File file;
-  private final ObjectMapper mapper = new ObjectMapper();
-  private final Map<String, Entry> entries = new HashMap<>();
+  private final XmlMapper mapper = new XmlMapper();
   private boolean dirty = false;
 
   public FileConfiguration(String filename)
@@ -55,7 +52,7 @@ public class FileConfiguration extends AtratoConfigurationBase
         if (name == null) {
           throw new ConfigurationException("name is required");
         }
-        entries.put(name, new Entry(name, value, description));
+        configEntries.put(name, new Entry(name, value, description));
       } catch (ClassCastException ex) {
         throw new ConfigurationException("Configuration entry must be an object");
       }
@@ -80,9 +77,7 @@ public class FileConfiguration extends AtratoConfigurationBase
   public void save(boolean force) throws IOException
   {
     if (dirty || force) {
-      Map<String, Collection<Entry>> m = new HashMap<>();
-      m.put("configuration", entries.values());
-      mapper.writeValue(this.file, m);
+      mapper.writer().withDefaultPrettyPrinter().writeValue(this.file, new ConfigurationForJackson(configEntries.values()));
       dirty = false;
     }
   }

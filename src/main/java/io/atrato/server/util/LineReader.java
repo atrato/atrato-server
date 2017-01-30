@@ -4,8 +4,6 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.commons.lang3.StringUtils;
-
 /**
  * Created by david on 1/14/17.
  */

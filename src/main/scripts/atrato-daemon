@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 USAGE="Usage: atrato-daemon (start|stop|stop-all) [(server)] [args]"
 
@@ -9,7 +9,10 @@ ARGS=("${@:3}") # get remaining arguments as array
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
 
-. "$bin"/../conf/env-system.sh
+env_system="$bin"/../conf/env-system.sh
+if [ -f $env_system ]; then
+    . $env_system
+fi
 
 case $DAEMON in
     (server)
@@ -30,16 +33,31 @@ if [ -z "${ATRATO_RELEASE_DIR}" ]; then
     atrato_server_jar=$(echo $build_dir/atrato-server-*.jar)
     ATRATO_CLASSPATH=$atrato_server_jar:$build_dir/lib/*
     ATRATO_HADOOP_CLASSPATH=$build_dir/hadoop-lib/*
-    if [ -d "${HADOOP_PREFIX}" ]; then
-        ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
-    fi
     ATRATO_JAVA_CMD=${ATRATO_JAVA_CMD:-$([ -z $JAVA_HOME ] && echo java || echo $JAVA_HOME/bin/java)}
-    ATRATO_RUN_DIR=${ATRATO_RUN_DIR:-$build_dir/daemon-log/}
-    ATRATO_LOG_DIR=${ATRATO_LOG_DIR:-$build_dir/daemon-log/}
+    ATRATO_ROOT_DIR="${ATRATO_ROOT_DIR:-$build_dir/atrato_home}"
+    ATRATO_LOG_DIR="${ATRATO_LOG_DIR:-${ATRATO_ROOT_DIR}/logs}"
+    ATRATO_RUN_DIR="${ATRATO_RUN_DIR:-${ATRATO_ROOT_DIR}/run}"
+    ATRATO_CONF_DIR="${ATRATO_CONF_DIR:-${ATRATO_ROOT_DIR}/conf}"
 else
     ATRATO_CLASSPATH="${ATRATO_RELEASE_DIR}"/lib/*
     ATRATO_HADOOP_CLASSPATH="${ATRATO_RELEASE_DIR}"/hadoop-lib/*
+    ATRATO_CONF_DIR="$bin"/../conf
 fi
+
+# needed for compatibility of StramClientUtils
+touch ${ATRATO_CONF_DIR}/dt-env.sh
+ATRATO_CLASSPATH=${ATRATO_CLASSPATH}:${ATRATO_CONF_DIR}
+
+env_custom=${ATRATO_CONF_DIR}/env-custom.sh
+
+if [ -f "$env_custom" ]; then
+    . $env_custom
+fi
+
+if [ -d "${HADOOP_PREFIX}" ]; then
+    export ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
+fi
+
 
 if [ -x "$ATRATO_HADOOP_CMD" ]; then
     ATRATO_HADOOP_CLASSPATH=$($ATRATO_HADOOP_CMD classpath)
@@ -51,6 +69,7 @@ ATRATO_IDENT_STRING=${ATRATO_IDENT_STRING:-$USER}
 pid=$ATRATO_RUN_DIR/atrato-$ATRATO_IDENT_STRING-$DAEMON.pid
 
 mkdir -p "$ATRATO_RUN_DIR"
+mkdir -p "$ATRATO_LOG_DIR"
 
 # Log files for daemons are indexed from the process ID's position in the PID
 # file. The following lock prevents a race condition during daemon startup
@@ -138,6 +157,8 @@ case $STARTSTOP in
             echo "Error starting $DAEMON daemon."
             exit 1
         fi
+
+        echo "Started $DAEMON daemon with pid $mypid"
     ;;
 
     (stop)
