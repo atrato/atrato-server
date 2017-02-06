@@ -154,7 +154,7 @@ public class AtratoServer
 
   private static void saveCustomEnvFile() throws IOException
   {
-    try (PrintWriter writer = new PrintWriter(atratoHomeDir + "/conf/env-custom.sh", "UTF-8")) {
+    try (PrintWriter writer = new PrintWriter(atratoHomeDir + "/conf/env.sh", "UTF-8")) {
       writer.println("export " + ENV_ATRATO_HADOOP_CMD + "=\"" + hadoopLocation + "\"");
       writer.println("export " + ENV_ATRATO_CONFIG_LOCATION + "=\"" + configLocation + "\"");
     }
