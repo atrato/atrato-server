@@ -3,15 +3,17 @@
 ## How to test
 
 * Start Hadoop (yarn and hdfs)
-
+  * You can also use a Docker container that exposes the default YARN ports instead of running Hadoop on the host OS. Example:
+  `docker run -v ~/devel:/workspace --expose=22 -p 8022:22 -p 8088:8088 -p 50070:50070 -p 8032:8032 -p 8042:8042 -p 8020:8020 -it -h apex-sandbox --name=apex-sandbox apacheapex/sandbox:3.5.0`
+  * The Atrato Server can run in development mode or can be packaged and deployed into the Docker container.
 * Optional: Start Yarn Timeline Server (experimental, necessary if you want attempt container info)
 
 * Start Atrato Server (Choose one of the two methods below)
 
   * Using command line
-    * Make sure HADOOP_PREFIX is set to your hadoop installation directory
+    * Make sure HADOOP_PREFIX is set to your hadoop installation directory or do ``export ATRATO_HADOOP_CMD=`which hadoop` ``
     * Run: `mvn install`
-    * Run: `src/main/scripts/atrato-server`
+    * Run: `src/main/scripts/atrato-daemon start`
 
   * Using your IDE (so you can debug using IDE)
     * Open atrato-server project with your IDE
