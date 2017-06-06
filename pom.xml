@@ -1,4 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (c) 2017 Atrato, Inc. ALL Rights Reserved.
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -7,7 +25,7 @@
   <parent>
     <groupId>org.apache.apex</groupId>
     <artifactId>apex</artifactId>
-    <version>3.5.0</version>
+    <version>3.6.0</version>
   </parent>
 
   <groupId>io.atrato</groupId>
@@ -15,7 +33,7 @@
   <version>0.1.0-SNAPSHOT</version>
 
   <properties>
-    <apex.version>3.5.0</apex.version>
+    <apex.version>3.6.0</apex.version>
   </properties>
 
   <build>
@@ -196,69 +214,6 @@
       <build>
         <plugins>
           <plugin>
-            <artifactId>maven-dependency-plugin</artifactId>
-            <executions>
-              <execution>
-                <id>generate-classpath</id>
-                <phase>generate-resources</phase>
-                <goals>
-                  <goal>build-classpath</goal>
-                </goals>
-                <configuration>
-                  <outputFile>${project.build.directory}/mvn-generated-classpath</outputFile>
-                  <includeScope>runtime</includeScope>
-                  <excludeScope>test</excludeScope>
-                </configuration>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <artifactId>maven-antrun-plugin</artifactId>
-            <version>1.8</version>
-            <executions>
-              <execution>
-                <phase>prepare-package</phase>
-                <id>copy-dependencies</id>
-                <configuration>
-                  <target>
-                    <exec executable="mvn">
-                      <arg value="dependency:build-classpath"/>
-                      <arg value="-Dmdep.outputFile=${basedir}/target/hadoop-classpath"/>
-                      <arg value="-DincludeScope=runtime"/>
-                      <arg value="-DexcludeScope=test"/>
-                      <arg value="-Dhadoop.version=${hadoop.version}"/>
-                      <arg value="-f"/>
-                      <arg value="${basedir}/src/assemble/pom-hadoop-deps.xml"/>
-                    </exec>
-                    <loadresource property="hadoop.classpath">
-                      <file file="${basedir}/target/hadoop-classpath"/>
-                    </loadresource>
-                    <pathconvert property="hadoop.csv" pathsep=",">
-                      <map from="/" to=""/>
-                      <path path="${hadoop.classpath}"/>
-                    </pathconvert>
-                    <loadresource property="atrato-server.classpath">
-                      <file file="${basedir}/target/mvn-generated-classpath"/>
-                    </loadresource>
-                    <pathconvert property="atrato-server.csv" pathsep=",">
-                      <map from="/" to=""/>
-                      <path path="${atrato-server.classpath}"/>
-                    </pathconvert>
-                    <copy todir="${basedir}/target/hadoop-deps" flatten="true" failonerror="true">
-                      <fileset dir="/" includes="${hadoop.csv}" />
-                    </copy>
-                    <copy todir="${basedir}/target/atrato-server-deps" flatten="true" failonerror="true">
-                      <fileset dir="/" includes="${atrato-server.csv}" excludes="${hadoop.csv}"/>
-                    </copy>
-                  </target>
-                </configuration>
-                <goals>
-                  <goal>run</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
             <groupId>com.googlecode.maven-download-plugin</groupId>
             <artifactId>download-maven-plugin</artifactId>
             <version>1.3.0</version>
@@ -270,7 +225,7 @@
                   <goal>wget</goal>
                 </goals>
                 <configuration>
-                  <url>https://raw.githubusercontent.com/apache/apex-core/v3.5.0/engine/src/main/scripts/apex</url>
+                  <url>https://raw.githubusercontent.com/apache/apex-core/v3.6.0/engine/src/main/scripts/apex</url>
                   <outputDirectory>${project.build.directory}/scripts</outputDirectory>
                   <md5>f7c1113407041cf55430709b01d9211f</md5>
                 </configuration>

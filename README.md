@@ -4,7 +4,7 @@
 
 * Start Hadoop (yarn and hdfs)
   * You can also use a Docker container that exposes the default YARN ports instead of running Hadoop on the host OS. Example:
-  `docker run -v ~/devel:/workspace --expose=22 -p 8022:22 -p 8088:8088 -p 50070:50070 -p 8032:8032 -p 8042:8042 -p 8020:8020 -it -h apex-sandbox --name=apex-sandbox apacheapex/sandbox:3.5.0`
+  `docker run -v ~/devel:/workspace --expose=22 -p 8022:22 -p 8088:8088 -p 50070:50070 -p 8032:8032 -p 8042:8042 -p 8020:8020 -it -h apex-sandbox --name=apex-sandbox apacheapex/sandbox:3.6.0`
   * The Atrato Server can run in development mode or can be packaged and deployed into the Docker container.
 * Optional: Start Yarn Timeline Server (experimental, necessary if you want attempt container info)
 
@@ -269,8 +269,7 @@ $ curl -s http://localhost:8800/ws/v1/applications/application_1483391433545_000
   * Instead, we should have the client poll for new data with a persistent (keep-alive) HTTP connection
 
 * Instead of having a thread that queries YARN for application list every second, I decided to use a time-based cache that
-only queries the application list if it's needed. This is because some users have complained about DT's gateway is generating
-too many requests to YARN. We may need to revisit this if we want to support alerts.
+only queries the application list if it's needed. We may need to revisit this if we want to support alerts.
 
 * I decided to do away from the Web Services methods returning JSONObject. I am now using Java beans instead. This is because
 we would be able to use something like `enunciate` to auto generate REST API doc. We need to think about what to do with the STRAM proxy calls though.

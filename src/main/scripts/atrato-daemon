@@ -35,6 +35,8 @@ if [ -z "${ATRATO_RELEASE_DIR}" ]; then
     ATRATO_HADOOP_CLASSPATH=$build_dir/hadoop-lib/*
     if [ -d "${HADOOP_PREFIX}" ]; then
         export ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-$HADOOP_PREFIX/bin/hadoop}
+    else
+        export ATRATO_HADOOP_CMD=${ATRATO_HADOOP_CMD:-`which hadoop`}
     fi
     ATRATO_JAVA_CMD=${ATRATO_JAVA_CMD:-$([ -z $JAVA_HOME ] && echo java || echo $JAVA_HOME/bin/java)}
     ATRATO_ROOT_DIR="${ATRATO_ROOT_DIR:-$build_dir/atrato_home}"
