@@ -22,6 +22,8 @@ import java.io.IOException;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.atrato.server.cluster.ContainerLogsReader;
 
@@ -30,6 +32,8 @@ import io.atrato.server.cluster.ContainerLogsReader;
  */
 public abstract class YarnContainerLogsReader implements ContainerLogsReader
 {
+  private static final Logger LOG = LoggerFactory.getLogger(YarnContainerLogsReader.class);
+
   public static YarnContainerLogsReader create(YarnCluster cluster, String appId, String containerId) throws FileNotFoundException
   {
     ApplicationReport applicationReport = cluster.getApplicationReport(appId);
@@ -45,12 +49,14 @@ public abstract class YarnContainerLogsReader implements ContainerLogsReader
     }
     try {
       return new YarnNMWebRawLogsReader(new YarnConfiguration(), applicationReport, containerReport);
-    } catch (IOException ex) {
+    } catch (Exception ex) {
+      LOG.warn("Cannot read raw logs", ex); // for debugging
       // fall through
     }
     try {
       return new YarnNMHtmlLogsReader(containerReport);
     } catch (IOException ex) {
+      LOG.warn("Cannot read html logs", ex); // for debugging
       // fall through
     }
     throw new FileNotFoundException("Container logs cannot be found");

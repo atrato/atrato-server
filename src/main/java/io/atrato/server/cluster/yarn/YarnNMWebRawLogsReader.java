@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerReport;
 import org.apache.hadoop.yarn.client.api.YarnClient;
@@ -34,7 +33,6 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
 import com.sun.jersey.api.client.WebResource;
-
 import com.datatorrent.stram.util.WebServicesClient;
 
 import io.atrato.server.util.LineReader;
@@ -44,44 +42,52 @@ import io.atrato.server.util.LineReader;
  */
 public class YarnNMWebRawLogsReader extends YarnContainerLogsReader
 {
+  private static final String URL_PATTERN = "(https?://[^/]+)/";
+  private static final String LOG_FILE_PATTERN = "<TR><TD><A HREF=\".+\">(.+)&nbsp;</TD><TD ALIGN=right>(\\d+) bytes&nbsp;</TD><TD>.*</TD></TR>";
   private String logUrl;
   private Map<String, Long> fileSizes = new HashMap<>();
 
-  public YarnNMWebRawLogsReader(Configuration conf, ApplicationReport applicationReport, ContainerReport containerReport) throws IOException
+  public YarnNMWebRawLogsReader(YarnConfiguration conf, ApplicationReport applicationReport, ContainerReport containerReport) throws IOException
   {
-    String logDirs = conf.get(YarnConfiguration.NM_LOG_DIRS);
     String containerLogUrl = containerReport.getLogUrl();
-    if (logDirs != null && logDirs.startsWith("${yarn.log.dir}/")) {
+    if (containerLogUrl.startsWith("//")) {
+      containerLogUrl = "http:" + containerLogUrl;
+    }
+
+    String logDirs = conf.get(YarnConfiguration.NM_LOG_DIRS);
+    if (logDirs.startsWith("${yarn.log.dir}/")) {
       logDirs = logDirs.substring(16);
-      Pattern pattern = Pattern.compile("(https?://[^/]+)/");
-      Matcher matcher = pattern.matcher(containerLogUrl);
-      if (!matcher.find()) {
-        throw new IOException("Cannot get nm web url");
-      }
-      String nmUrlPrefix = matcher.group(1);
-      String applicationId = applicationReport.getApplicationId().toString();
-      String containerId = containerReport.getContainerId().toString();
-      logUrl = nmUrlPrefix + "/logs/" + logDirs + "/" + applicationId + "/" + containerId;
+    } else if (logDirs.endsWith("/containers")) {
+      // Bigtop/EMR
+      logDirs = "containers";
+    } else {
+      throw new IllegalStateException("Cannot resolve log dir with "
+          + YarnConfiguration.NM_LOG_DIRS + "=" + logDirs);
+    }
 
-      WebServicesClient webServicesClient = new WebServicesClient();
-      WebResource wr = webServicesClient.getClient().resource(logUrl);
-      WebResource.Builder builder = wr.getRequestBuilder();
+    Matcher m = Pattern.compile(URL_PATTERN).matcher(containerLogUrl);
+    if (!m.find()) {
+      throw new IllegalStateException("Cannot get base URL from " + containerLogUrl);
+    }
 
-      try (InputStream is = webServicesClient.process(builder, InputStream.class, new WebServicesClient.GetWebServicesHandler<InputStream>());
-          BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
-        Pattern htmlPattern = Pattern.compile("<TR><TD><A HREF=\".+\">(.+)&nbsp;</TD><TD ALIGN=right>(\\d+) bytes&nbsp;</TD><TD>.*</TD></TR>");
-        String line;
-        while ((line = br.readLine()) != null) {
-          Matcher m = htmlPattern.matcher(line);
-          if (m.find()) {
-            String name = m.group(1);
-            long size = Long.parseLong(m.group(2));
-            fileSizes.put(name, size);
-          }
+    String baseUrl = m.group(1);
+    logUrl = baseUrl + "/logs/" + logDirs + "/" + applicationReport.getApplicationId().toString() + "/" + containerReport.getContainerId().toString();
+
+    WebServicesClient webServicesClient = new WebServicesClient();
+    WebResource wr = webServicesClient.getClient().resource(logUrl);
+    WebResource.Builder builder = wr.getRequestBuilder();
+
+    try (InputStream is = webServicesClient.process(builder, InputStream.class, new WebServicesClient.GetWebServicesHandler<InputStream>());
+        BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+      Pattern htmlPattern = Pattern.compile(LOG_FILE_PATTERN);
+      String line;
+      while ((line = br.readLine()) != null) {
+        m = htmlPattern.matcher(line);
+        if (m.find()) {
+          long size = Long.parseLong(m.group(2));
+          fileSizes.put(m.group(1), size);
         }
       }
-    } else {
-      throw new IOException("Cannot get location of web raw log");
     }
   }
 
