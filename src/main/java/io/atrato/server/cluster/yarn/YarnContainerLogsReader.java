@@ -55,7 +55,7 @@ public abstract class YarnContainerLogsReader implements ContainerLogsReader
     }
     try {
       return new YarnNMHtmlLogsReader(containerReport);
-    } catch (IOException ex) {
+    } catch (Exception ex) {
       LOG.warn("Cannot read html logs", ex); // for debugging
       // fall through
     }
